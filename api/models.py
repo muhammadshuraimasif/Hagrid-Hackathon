@@ -231,9 +231,50 @@ class Decision(Base):
     rule_hash = Column(String(64), nullable=False)
     route = Column(String(32), nullable=False, index=True)  # AUTO, ASK, HUMAN
     p = Column(Float, nullable=False)
+    tau = Column(Float, nullable=True)
     expected_cost = Column(Float, nullable=False)
+    input_hash = Column(String(64), nullable=True, index=True)
     input_snapshot = Column(JSON, nullable=False)
     trace = Column(JSON, nullable=False)
     citizen_reason = Column(JSON, nullable=False)
+    decision_token = Column(Text, nullable=True)
+    payment_reference = Column(String(64), nullable=True)
+    hold_expires_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+
+
+class EvalRun(Base):
+    __tablename__ = "eval_runs"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    seed = Column(Integer, nullable=False)
+    total_cases = Column(Integer, nullable=False)
+    split_counts = Column(JSON, nullable=False)  # {"train": ..., "calibration": ..., "test": ...}
+    tau_chosen = Column(Float, nullable=False)
+    clopper_pearson_upper = Column(Float, nullable=False)
+    wrong_approval_rate = Column(Float, nullable=False)
+    test_metrics = Column(JSON, nullable=False)  # sweep, route_mix, fairness_slice, ECE, reliability
+    is_latest = Column(Boolean, default=True, nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class EvalResult(Base):
+    __tablename__ = "eval_results"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    eval_run_id = Column(String(36), ForeignKey("eval_runs.id", ondelete="CASCADE"), nullable=False, index=True)
+    split = Column(String(16), nullable=False, index=True)  # train, calibration, test
+    case_id = Column(String(64), nullable=False, index=True)
+    ground_truth_eligible = Column(Boolean, nullable=False)
+    ground_truth_fraud = Column(Boolean, nullable=False)
+    raw_c = Column(Float, nullable=False)
+    calibrated_p = Column(Float, nullable=False)
+    route = Column(String(32), nullable=False, index=True)  # AUTO, ASK, HUMAN
+    ask_target = Column(String(64), nullable=True)
+    ask_rounds = Column(Integer, default=0, nullable=False)
+    cost = Column(Float, nullable=False)
+    channel = Column(String(32), nullable=False)  # self, helper, voice
+    name_variant_group = Column(String(32), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
 

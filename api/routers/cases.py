@@ -1,12 +1,12 @@
 import uuid
 import hashlib
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.database import get_db
-from api.models import User, Case, CaseEvent, Person, HelperGrant
+from api.models import User, Case, CaseEvent, Person, HelperGrant, Decision
 from api.schemas import (
     CaseCreate,
     CaseOut,
@@ -19,6 +19,12 @@ from api.dependencies import get_current_user, require_roles
 from api.cases import transition_case_status
 from api.audit import record_audit_event
 from api.rules.service import decide_case
+from api.decision_engine.service import (
+    evaluate_case_full,
+    reverse_held_payment,
+    officer_review_decision,
+    get_review_queue_sorted,
+)
 
 router = APIRouter(prefix="/api/v1/cases", tags=["Cases"])
 
@@ -142,6 +148,14 @@ async def list_cases(
     query = query.order_by(Case.created_at.desc())
     result = await db.execute(query)
     return result.scalars().all()
+
+@router.get("/review-queue")
+async def get_case_review_queue(
+    current_user: User = Depends(require_roles("officer", "admin")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Returns officer review queue sorted by risk/vulnerability priority."""
+    return await get_review_queue_sorted(db, current_user.tenant_id)
 
 @router.get("/{case_id}", response_model=CaseOut)
 async def get_case(
@@ -369,4 +383,155 @@ async def decide_case_endpoint(
         "trace": decision.trace,
         "case_status": case.status,
     }
+
+
+@router.post("/{case_id}/evaluate")
+async def evaluate_case_endpoint(
+    case_id: str,
+    request: Request,
+    current_user: User = Depends(require_roles("helper", "officer", "admin")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Executes full decision engine pipeline (Module 5), persisting decision and updating status."""
+    request_id = getattr(request.state, "request_id", None)
+    res = await db.execute(select(Case).where(Case.id == case_id))
+    case = res.scalars().first()
+    if not case or not await can_access_case(case, current_user, db):
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Case not found"})
+
+    try:
+        decision = await evaluate_case_full(db, case.id, current_user, request_id=request_id)
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail={"code": "BAD_REQUEST", "message": str(ve)})
+
+    return {
+        "decision_id": decision.id,
+        "case_id": case.id,
+        "rule_version": decision.rule_version,
+        "rule_hash": decision.rule_hash,
+        "route": decision.route,
+        "p": decision.p,
+        "tau": decision.tau,
+        "expected_cost": decision.expected_cost,
+        "decision_token": decision.decision_token,
+        "payment_reference": decision.payment_reference,
+        "citizen_reason": decision.citizen_reason,
+        "trace": decision.trace,
+        "case_status": case.status,
+    }
+
+
+@router.get("/{case_id}/explanation")
+async def get_case_explanation(
+    case_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Bilingual explanation for citizen/helper: actionable next step for ASK, reassuring for HUMAN."""
+    res = await db.execute(select(Case).where(Case.id == case_id))
+    case = res.scalars().first()
+    if not case or not await can_access_case(case, current_user, db):
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Case not found"})
+
+    dec_res = await db.execute(
+        select(Decision).where(Decision.case_id == case.id).order_by(Decision.created_at.desc())
+    )
+    decision = dec_res.scalars().first()
+    if not decision:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "No decision found for case"})
+
+    reasons = dict(decision.citizen_reason or {})
+    if decision.route == "HUMAN":
+        reasons["reassurance"] = {
+            "en": "Your application has been received safely and is being verified by a human officer. This is not a rejection.",
+            "ur": "آپ کی درخواست موصول ہو چکی ہے اور افسر اس کا جائزہ لے رہے ہیں۔ یہ ہرگز مسترد نہیں کی گئی۔"
+        }
+
+    ask_target = decision.trace.get("ask_target") if decision.trace else None
+
+    return {
+        "case_id": case.id,
+        "route": decision.route,
+        "status": case.status,
+        "citizen_reason": reasons,
+        "actionable_next_step": ask_target if decision.route == "ASK" else None,
+    }
+
+
+@router.post("/{case_id}/reverse-hold")
+async def reverse_case_hold_endpoint(
+    case_id: str,
+    payload: Optional[Dict[str, Any]] = None,
+    request: Request = None,
+    current_user: User = Depends(require_roles("officer", "admin")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Officer reversal of a held payment before the hold window expires."""
+    request_id = getattr(request.state, "request_id", None) if request else None
+    reason = (payload or {}).get("reason", "Payment hold reversed by officer review")
+    try:
+        case, rev_res = await reverse_held_payment(db, case_id, current_user, reason=reason, request_id=request_id)
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail={"code": "BAD_REQUEST", "message": str(ve)})
+
+    return {
+        "case_id": case.id,
+        "status": case.status,
+        "reversal_details": rev_res,
+        "message": "Payment hold successfully reversed"
+    }
+
+
+@router.post("/{case_id}/officer-approve")
+async def officer_approve_case(
+    case_id: str,
+    payload: Optional[Dict[str, Any]] = None,
+    request: Request = None,
+    current_user: User = Depends(require_roles("officer", "admin")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Human officer approval of a case."""
+    request_id = getattr(request.state, "request_id", None) if request else None
+    note = (payload or {}).get("note", "Approved by human officer")
+    try:
+        case = await officer_review_decision(db, case_id, current_user, "approve", note, request_id=request_id)
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail={"code": "BAD_REQUEST", "message": str(ve)})
+    return {"case_id": case.id, "status": case.status, "message": "Case approved by officer"}
+
+
+@router.post("/{case_id}/officer-reject")
+async def officer_reject_case(
+    case_id: str,
+    payload: Optional[Dict[str, Any]] = None,
+    request: Request = None,
+    current_user: User = Depends(require_roles("officer", "admin")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Human officer rejection of a case (Human Supremacy: only humans reject)."""
+    request_id = getattr(request.state, "request_id", None) if request else None
+    note = (payload or {}).get("note", "Rejected by human officer")
+    try:
+        case = await officer_review_decision(db, case_id, current_user, "reject", note, request_id=request_id)
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail={"code": "BAD_REQUEST", "message": str(ve)})
+    return {"case_id": case.id, "status": case.status, "message": "Case rejected by officer"}
+
+
+@router.post("/{case_id}/officer-request-info")
+async def officer_request_info_case(
+    case_id: str,
+    payload: Optional[Dict[str, Any]] = None,
+    request: Request = None,
+    current_user: User = Depends(require_roles("officer", "admin")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Human officer requests additional information from applicant."""
+    request_id = getattr(request.state, "request_id", None) if request else None
+    note = (payload or {}).get("note", "Officer requested additional documents/clarification")
+    try:
+        case = await officer_review_decision(db, case_id, current_user, "request_info", note, request_id=request_id)
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail={"code": "BAD_REQUEST", "message": str(ve)})
+    return {"case_id": case.id, "status": case.status, "message": "Additional info requested by officer"}
 

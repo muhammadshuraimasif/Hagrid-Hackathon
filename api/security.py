@@ -86,9 +86,13 @@ import base64
 
 def mint_decision_token(
     case_id: str,
-    amount: float,
-    tenant_id: str,
-    expires_in_seconds: int = 300
+    amount: float = 0.0,
+    tenant_id: str = "default",
+    expires_in_seconds: int = 300,
+    route: str = "AUTO",
+    p: Optional[float] = None,
+    input_hash: Optional[str] = None,
+    secret: Optional[str] = None
 ) -> str:
     """
     Mints a short-lived HMAC-signed decision capability token for a specific case.
@@ -100,14 +104,18 @@ def mint_decision_token(
         "case_id": case_id,
         "amount": round(float(amount), 2),
         "tenant_id": tenant_id,
+        "route": route,
+        "p": p,
+        "input_hash": input_hash,
         "iat": int(now.timestamp()),
         "exp": int(exp.timestamp()),
         "nonce": secrets.token_hex(8)
     }
     payload_json = json.dumps(payload, sort_keys=True)
     payload_b64 = base64.urlsafe_b64encode(payload_json.encode("utf-8")).decode("utf-8")
+    sec = (secret or settings.DECISION_TOKEN_SECRET).encode("utf-8")
     signature = hmac.new(
-        settings.DECISION_TOKEN_SECRET.encode("utf-8"),
+        sec,
         payload_b64.encode("utf-8"),
         hashlib.sha256
     ).hexdigest()
@@ -116,7 +124,9 @@ def mint_decision_token(
 def verify_decision_token(
     token: str,
     expected_case_id: str,
-    expected_amount: Optional[float] = None
+    expected_amount: Optional[float] = None,
+    expected_route: Optional[str] = None,
+    secret: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Verifies the HMAC signature, expiration, and case capability of a decision token.
@@ -129,8 +139,9 @@ def verify_decision_token(
         raise ValueError("Malformed decision token format")
     payload_b64, signature = parts
     
+    sec = (secret or settings.DECISION_TOKEN_SECRET).encode("utf-8")
     expected_sig = hmac.new(
-        settings.DECISION_TOKEN_SECRET.encode("utf-8"),
+        sec,
         payload_b64.encode("utf-8"),
         hashlib.sha256
     ).hexdigest()
@@ -147,6 +158,17 @@ def verify_decision_token(
     now_ts = int(datetime.now(timezone.utc).timestamp())
     if payload.get("exp", 0) < now_ts:
         raise ValueError("Decision token has expired")
+
+    if payload.get("case_id") != expected_case_id:
+        raise ValueError(f"Token minted for case {payload.get('case_id')} cannot be used for {expected_case_id}")
+
+    if expected_amount is not None and abs(float(payload.get("amount", 0.0)) - float(expected_amount)) > 0.01:
+        raise ValueError("Token amount does not match expected amount")
+
+    if expected_route is not None and payload.get("route") != expected_route:
+        raise ValueError("Token route does not match expected route")
+
+    return payload
 
     if payload.get("case_id") != expected_case_id:
         raise ValueError(f"Decision token was minted for case {payload.get('case_id')}, cannot be used for {expected_case_id}")

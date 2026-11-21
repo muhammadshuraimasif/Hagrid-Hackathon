@@ -1,19 +1,26 @@
 import os
 os.environ["TESTING"] = "1"
+TEST_DB_PATH = os.path.abspath("./test_suite.db")
+TEST_DB_URL = f"sqlite+aiosqlite:///{TEST_DB_PATH}"
+os.environ["DATABASE_URL"] = TEST_DB_URL
+
+if os.path.exists(TEST_DB_PATH):
+    try:
+        os.remove(TEST_DB_PATH)
+    except Exception:
+        pass
+
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from api.config import settings
-from api.database import Base, init_db, SQLITE_AUDIT_TRIGGERS
+from api.database import Base, init_db, SQLITE_AUDIT_TRIGGERS, engine
 from api.seed import seed_data
 from api.main import app
 from api.models import User
 from api.security import create_access_token
 from api.middleware import _rate_limit_windows
-
-TEST_DB_PATH = "./test_suite.db"
-TEST_DB_URL = f"sqlite+aiosqlite:///{TEST_DB_PATH}"
 
 _db_initialized = False
 _token_cache: dict[str, str] = {}
@@ -23,12 +30,6 @@ async def setup_test_database():
     global _db_initialized
     _rate_limit_windows.clear()
     if not _db_initialized:
-        if os.path.exists(TEST_DB_PATH):
-            try:
-                os.remove(TEST_DB_PATH)
-            except Exception:
-                pass
-        settings.DATABASE_URL = TEST_DB_URL
         await init_db()
         await seed_data()
         _db_initialized = True
