@@ -13,5 +13,9 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     RATE_LIMIT_PER_MINUTE: int = 120
     PROTOTYPE_WARNING: str = "PROTOTYPE ONLY - Synthetic data only - Hagrid's Hackathon '26"
+    DECISION_TOKEN_SECRET: str = "amaanat-capability-decision-token-secret-2026"
+    MOCK_SERVICES_URL: str = "http://127.0.0.1:8001"
+    CIRCUIT_BREAKER_FAIL_MAX: int = 3
+    CIRCUIT_BREAKER_RESET_TIMEOUT: float = 2.0
 
 settings = Settings()

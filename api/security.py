@@ -75,3 +75,82 @@ def generate_api_key() -> tuple[str, str, str]:
     key_prefix = raw_key[:12]  # e.g. "amk_1a2b3c4d"
     key_hash = hash_token(raw_key)
     return raw_key, key_prefix, key_hash
+
+import hmac
+import json
+import base64
+
+def mint_decision_token(
+    case_id: str,
+    amount: float,
+    tenant_id: str,
+    expires_in_seconds: int = 300
+) -> str:
+    """
+    Mints a short-lived HMAC-signed decision capability token for a specific case.
+    Required by Raast payment client to authorise holds.
+    """
+    now = datetime.now(timezone.utc)
+    exp = now + timedelta(seconds=expires_in_seconds)
+    payload = {
+        "case_id": case_id,
+        "amount": round(float(amount), 2),
+        "tenant_id": tenant_id,
+        "iat": int(now.timestamp()),
+        "exp": int(exp.timestamp()),
+        "nonce": secrets.token_hex(8)
+    }
+    payload_json = json.dumps(payload, sort_keys=True)
+    payload_b64 = base64.urlsafe_b64encode(payload_json.encode("utf-8")).decode("utf-8")
+    signature = hmac.new(
+        settings.DECISION_TOKEN_SECRET.encode("utf-8"),
+        payload_b64.encode("utf-8"),
+        hashlib.sha256
+    ).hexdigest()
+    return f"{payload_b64}.{signature}"
+
+def verify_decision_token(
+    token: str,
+    expected_case_id: str,
+    expected_amount: Optional[float] = None
+) -> Dict[str, Any]:
+    """
+    Verifies the HMAC signature, expiration, and case capability of a decision token.
+    Raises ValueError on any violation.
+    """
+    if not token or "." not in token:
+        raise ValueError("Malformed decision token")
+    parts = token.split(".")
+    if len(parts) != 2:
+        raise ValueError("Malformed decision token format")
+    payload_b64, signature = parts
+    
+    expected_sig = hmac.new(
+        settings.DECISION_TOKEN_SECRET.encode("utf-8"),
+        payload_b64.encode("utf-8"),
+        hashlib.sha256
+    ).hexdigest()
+    
+    if not hmac.compare_digest(signature, expected_sig):
+        raise ValueError("Invalid decision token signature")
+
+    try:
+        payload_json = base64.urlsafe_b64decode(payload_b64.encode("utf-8")).decode("utf-8")
+        payload = json.loads(payload_json)
+    except Exception as e:
+        raise ValueError(f"Failed to decode decision token payload: {e}")
+
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    if payload.get("exp", 0) < now_ts:
+        raise ValueError("Decision token has expired")
+
+    if payload.get("case_id") != expected_case_id:
+        raise ValueError(f"Decision token was minted for case {payload.get('case_id')}, cannot be used for {expected_case_id}")
+
+    if expected_amount is not None:
+        token_amount = float(payload.get("amount", 0.0))
+        if abs(token_amount - float(expected_amount)) > 0.01:
+            raise ValueError(f"Decision token amount {token_amount} does not match expected amount {expected_amount}")
+
+    return payload
+
