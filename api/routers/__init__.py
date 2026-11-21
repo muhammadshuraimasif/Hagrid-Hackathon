@@ -1,3 +1,3 @@
-from api.routers import auth, admin, audit, public, ops, cases, documents, sync, consent
+from api.routers import auth, admin, audit, public, ops, cases, documents, sync, consent, rules, decisions
 
-__all__ = ["auth", "admin", "audit", "public", "ops", "cases", "documents", "sync", "consent"]
+__all__ = ["auth", "admin", "audit", "public", "ops", "cases", "documents", "sync", "consent", "rules", "decisions"]

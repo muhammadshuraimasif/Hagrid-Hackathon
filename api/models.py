@@ -5,6 +5,7 @@ from sqlalchemy import (
     String,
     Boolean,
     Integer,
+    Float,
     DateTime,
     ForeignKey,
     JSON,
@@ -201,3 +202,38 @@ class ConsentEvent(Base):
     epoch = Column(Integer, default=1, nullable=False)
     details = Column(JSON, nullable=False, default=dict)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class RuleSet(Base):
+    __tablename__ = "rule_sets"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    version = Column(Integer, nullable=False)
+    status = Column(String(32), default="draft", nullable=False, index=True)  # draft, published, retired
+    author = Column(String(255), nullable=False)
+    effective_at = Column(DateTime(timezone=True), nullable=True)
+    content_hash = Column(String(64), nullable=False, index=True)
+    definition = Column(JSON, nullable=False)
+    twin_report = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class Decision(Base):
+    __tablename__ = "decisions"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    case_id = Column(String(36), ForeignKey("cases.id", ondelete="CASCADE"), nullable=False, index=True)
+    rule_version_id = Column(String(36), ForeignKey("rule_sets.id", ondelete="SET NULL"), nullable=True, index=True)
+    rule_version = Column(Integer, nullable=False)
+    rule_hash = Column(String(64), nullable=False)
+    route = Column(String(32), nullable=False, index=True)  # AUTO, ASK, HUMAN
+    p = Column(Float, nullable=False)
+    expected_cost = Column(Float, nullable=False)
+    input_snapshot = Column(JSON, nullable=False)
+    trace = Column(JSON, nullable=False)
+    citizen_reason = Column(JSON, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+

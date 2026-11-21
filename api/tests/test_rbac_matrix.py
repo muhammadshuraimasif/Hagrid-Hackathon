@@ -19,6 +19,10 @@ ENDPOINTS = [
     ("/api/v1/sync/pull", "GET", ["citizen", "helper"]),
     ("/api/v1/consent/grant", "POST", ["citizen"]),
     ("/api/v1/consent/withdraw", "POST", ["citizen"]),
+    ("/api/v1/rules", "GET", ["admin"]),
+    ("/api/v1/rules", "POST", ["admin"]),
+    ("/api/v1/decisions/nonexistent-id/replay", "GET", ["auditor", "admin"]),
+    ("/api/v1/cases/nonexistent-case-id/decide", "POST", ["officer", "admin"]),
 ]
 
 ALL_ROLES = ["citizen", "helper", "officer", "admin", "auditor"]

@@ -196,6 +196,15 @@ async def test_sync_pull_with_cursor_returns_only_newer_events(
 ):
     headers = {"Authorization": f"Bearer {citizen_prd_token}"}
 
+    # Drain to current latest cursor
+    cursor_base = 0
+    while True:
+        drain_res = await client.get(f"/api/v1/sync/pull?cursor={cursor_base}&limit=500", headers=headers)
+        next_c = drain_res.json()["next_cursor"]
+        if next_c == cursor_base:
+            break
+        cursor_base = next_c
+
     # Create case
     res_case = await client.post("/api/v1/cases", headers=headers, json={"name": "Cursor Case"})
     case_id = res_case.json()["id"]
@@ -209,10 +218,10 @@ async def test_sync_pull_with_cursor_returns_only_newer_events(
     )
     assert res1.status_code == 200
 
-    # Pull events, record current cursor
-    res_pull1 = await client.get("/api/v1/sync/pull?cursor=0", headers=headers)
+    # Pull events from cursor_base, record current cursor
+    res_pull1 = await client.get(f"/api/v1/sync/pull?cursor={cursor_base}&limit=500", headers=headers)
     cursor_1 = res_pull1.json()["next_cursor"]
-    assert cursor_1 > 0
+    assert cursor_1 > cursor_base
 
     # Push Event 2
     ev2_uuid = str(uuid.uuid4())
@@ -224,7 +233,7 @@ async def test_sync_pull_with_cursor_returns_only_newer_events(
     assert res2.status_code == 200
 
     # Pull with cursor=cursor_1 -> returns ONLY newer events
-    res_pull2 = await client.get(f"/api/v1/sync/pull?cursor={cursor_1}", headers=headers)
+    res_pull2 = await client.get(f"/api/v1/sync/pull?cursor={cursor_1}&limit=500", headers=headers)
     events = res_pull2.json()["events"]
     assert len(events) >= 1
     for ev in events:

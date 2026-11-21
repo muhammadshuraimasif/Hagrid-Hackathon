@@ -18,6 +18,7 @@ from api.schemas import (
 from api.dependencies import get_current_user, require_roles
 from api.cases import transition_case_status
 from api.audit import record_audit_event
+from api.rules.service import decide_case
 
 router = APIRouter(prefix="/api/v1/cases", tags=["Cases"])
 
@@ -312,3 +313,60 @@ async def get_case_timeline(
         select(CaseEvent).where(CaseEvent.case_id == case_id).order_by(CaseEvent.id.asc())
     )
     return events_res.scalars().all()
+
+
+@router.post("/{case_id}/decide")
+async def decide_case_endpoint(
+    case_id: str,
+    request: Request,
+    current_user: User = Depends(require_roles("officer", "admin")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Evaluates case inputs against the active published rule set and assigns exit route."""
+    request_id = getattr(request.state, "request_id", None)
+    result = await db.execute(select(Case).where(Case.id == case_id, Case.tenant_id == current_user.tenant_id))
+    case = result.scalars().first()
+    if not case:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Case not found"})
+
+    raw_input = dict(case.step_data or {})
+    decision = await decide_case(db, case.tenant_id, case.id, raw_input)
+
+    # Determine target status from decision route
+    if decision.route == "AUTO":
+        target_status = "APPROVED_ON_HOLD"
+    elif decision.route == "ASK":
+        target_status = "NEEDS_INFO"
+    else:
+        target_status = "IN_REVIEW"
+
+    # Transition case through CHECKING if currently SUBMITTED
+    if case.status == "SUBMITTED":
+        await transition_case_status(
+            db, case, "CHECKING", current_user,
+            reason="System rule evaluation initiated",
+            client_uuid=str(uuid.uuid4()),
+            request_id=request_id
+        )
+
+    if case.status == "CHECKING":
+        await transition_case_status(
+            db, case, target_status, current_user,
+            reason=f"Decided route {decision.route}: {decision.citizen_reason.get('en')}",
+            client_uuid=str(uuid.uuid4()),
+            request_id=request_id
+        )
+
+    return {
+        "decision_id": decision.id,
+        "case_id": case.id,
+        "rule_version": decision.rule_version,
+        "rule_hash": decision.rule_hash,
+        "route": decision.route,
+        "p": decision.p,
+        "expected_cost": decision.expected_cost,
+        "citizen_reason": decision.citizen_reason,
+        "trace": decision.trace,
+        "case_status": case.status,
+    }
+
