@@ -1,0 +1,78 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: amaanat-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: amaanat_db
+      POSTGRES_USER: amaanat_user
+      POSTGRES_PASSWORD: amaanat_secure_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U amaanat_user -d amaanat_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mocks:
+    build:
+      context: .
+      dockerfile: mocks/Dockerfile
+    container_name: amaanat-mocks
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      PORT: "8001"
+    depends_on:
+      - postgres
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: amaanat-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://amaanat_user:amaanat_secure_password@postgres:5432/amaanat_db"
+      MOCKS_URL: "http://mocks:8001"
+      ENVIRONMENT: "development"
+      IS_PROTOTYPE: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mocks:
+        condition: service_started
+
+  worker:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    container_name: amaanat-worker
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://amaanat_user:amaanat_secure_password@postgres:5432/amaanat_db"
+      MOCKS_URL: "http://mocks:8001"
+      IS_PROTOTYPE: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: amaanat-web
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
