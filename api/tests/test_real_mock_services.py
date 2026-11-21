@@ -4,6 +4,8 @@ running in an independent uvicorn subprocess.
 PROTOTYPE ONLY. Follows AGENTS.md and docs/BLUEPRINT.md.
 """
 import sys
+import os
+from pathlib import Path
 import time
 import socket
 import subprocess
@@ -28,6 +30,10 @@ def real_mock_server():
     port = 8011
     proc = None
 
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(repo_root)
+
     if not _is_port_open(host, port):
         cmd = [
             sys.executable,
@@ -41,11 +47,11 @@ def real_mock_server():
             "--log-level",
             "warning"
         ]
-        proc = subprocess.Popen(cmd)
+        proc = subprocess.Popen(cmd, cwd=str(repo_root), env=env)
         
-        # Wait up to 10 seconds for mock server to be responsive
+        # Wait up to 15 seconds for mock server to be responsive
         started = False
-        for _ in range(50):
+        for _ in range(75):
             if _is_port_open(host, port):
                 started = True
                 break
