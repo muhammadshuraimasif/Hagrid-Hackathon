@@ -15,7 +15,14 @@ def ensure_utc(dt: Optional[datetime]) -> Optional[datetime]:
         return dt.replace(tzinfo=timezone.utc)
     return dt
 
-ph = PasswordHasher()
+import os
+
+def _get_hasher() -> PasswordHasher:
+    if os.getenv("TESTING") == "1":
+        return PasswordHasher(time_cost=1, memory_cost=1024, parallelism=1)
+    return PasswordHasher()
+
+ph = _get_hasher()
 
 def hash_password(password: str) -> str:
     """Hash password using Argon2."""

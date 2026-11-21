@@ -96,3 +96,108 @@ class AuditLog(Base):
     hash = Column(String(64), nullable=False, index=True)
     canonical_payload = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class Person(Base):
+    __tablename__ = "persons"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    cnic_encrypted = Column(Text, nullable=False)
+    cnic_hash = Column(String(64), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    canonical_name = Column(String(255), nullable=False, index=True)
+    father_name = Column(String(255), nullable=True)
+    dob = Column(String(32), nullable=True)
+    field_states = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class Case(Base):
+    __tablename__ = "cases"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    person_id = Column(String(36), ForeignKey("persons.id", ondelete="CASCADE"), nullable=False, index=True)
+    creator_user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    assigned_officer_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    status = Column(String(32), default="DRAFT", nullable=False, index=True)
+    step_data = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class CaseEvent(Base):
+    __tablename__ = "case_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    case_id = Column(String(36), ForeignKey("cases.id", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    client_uuid = Column(String(64), nullable=False)
+    event_type = Column(String(64), nullable=False, index=True)
+    payload = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class Document(Base):
+    __tablename__ = "documents"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    case_id = Column(String(36), ForeignKey("cases.id", ondelete="SET NULL"), nullable=True, index=True)
+    uploader_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    filename = Column(String(255), nullable=False)
+    mime_type = Column(String(64), nullable=False)
+    file_size = Column(Integer, nullable=False)
+    sha256 = Column(String(64), nullable=True)
+    storage_path = Column(String(512), nullable=True)
+    chunk_count = Column(Integer, default=1, nullable=False)
+    chunks_received = Column(JSON, nullable=False, default=list)
+    is_complete = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class HelperGrant(Base):
+    __tablename__ = "helper_grants"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    helper_user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    person_id = Column(String(36), ForeignKey("persons.id", ondelete="CASCADE"), nullable=False, index=True)
+    receipt_id = Column(String(64), nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class Consent(Base):
+    __tablename__ = "consents"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    person_id = Column(String(36), ForeignKey("persons.id", ondelete="CASCADE"), nullable=False, index=True)
+    granted_to_type = Column(String(32), nullable=False)  # department, helper, api_client
+    granted_to_id = Column(String(36), nullable=True)
+    scope = Column(JSON, nullable=False, default=list)  # ["identity", "contact", "documents", "payment", "status"]
+    purpose = Column(String(255), nullable=False)
+    expiry = Column(DateTime(timezone=True), nullable=True)
+    receipt_id = Column(String(64), nullable=False)
+    epoch = Column(Integer, default=1, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class ConsentEvent(Base):
+    __tablename__ = "consent_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    consent_id = Column(String(36), ForeignKey("consents.id", ondelete="SET NULL"), nullable=True, index=True)
+    person_id = Column(String(36), ForeignKey("persons.id", ondelete="CASCADE"), nullable=False, index=True)
+    event_type = Column(String(64), nullable=False, index=True)
+    epoch = Column(Integer, default=1, nullable=False)
+    details = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
