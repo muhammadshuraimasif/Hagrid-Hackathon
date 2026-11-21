@@ -6,14 +6,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.database import get_db
 from api.models import User, Case, CaseEvent
 from api.schemas import SyncPushRequest, SyncPushResponse, SyncPullResponse, CaseEventOut
-from api.dependencies import get_current_user
+from api.dependencies import get_current_user, require_roles
 
 router = APIRouter(prefix="/api/v1/sync", tags=["Sync"])
 
 @router.post("/push", response_model=SyncPushResponse)
 async def push_sync_events(
     payload: SyncPushRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles("citizen", "helper")),
     db: AsyncSession = Depends(get_db)
 ):
     processed = 0
@@ -57,7 +57,7 @@ async def push_sync_events(
 async def pull_sync_events(
     cursor: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles("citizen", "helper")),
     db: AsyncSession = Depends(get_db)
 ):
     # Pull events for user's tenant

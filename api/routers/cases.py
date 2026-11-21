@@ -120,7 +120,7 @@ async def create_case(
 
 @router.get("", response_model=List[CaseOut])
 async def list_cases(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles("citizen", "helper", "officer")),
     db: AsyncSession = Depends(get_db)
 ):
     query = select(Case).where(Case.tenant_id == current_user.tenant_id)
@@ -260,7 +260,7 @@ async def escalate_case(
     case_id: str,
     payload: CaseTransition,
     request: Request,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles("officer", "admin")),
     db: AsyncSession = Depends(get_db)
 ):
     request_id = getattr(request.state, "request_id", None)

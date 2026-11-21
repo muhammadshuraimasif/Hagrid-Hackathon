@@ -15,26 +15,25 @@ from api.middleware import _rate_limit_windows
 TEST_DB_PATH = "./test_suite.db"
 TEST_DB_URL = f"sqlite+aiosqlite:///{TEST_DB_PATH}"
 
+_db_initialized = False
+_token_cache: dict[str, str] = {}
+
 @pytest_asyncio.fixture(autouse=True)
 async def setup_test_database():
+    global _db_initialized
     _rate_limit_windows.clear()
-    # Remove old test db file if exists
-    if os.path.exists(TEST_DB_PATH):
-        try:
-            os.remove(TEST_DB_PATH)
-        except Exception:
-            pass
-
-    settings.DATABASE_URL = TEST_DB_URL
-    await init_db()
-    await seed_data()
+    if not _db_initialized:
+        if os.path.exists(TEST_DB_PATH):
+            try:
+                os.remove(TEST_DB_PATH)
+            except Exception:
+                pass
+        settings.DATABASE_URL = TEST_DB_URL
+        await init_db()
+        await seed_data()
+        _db_initialized = True
     yield
-    # Cleanup after test suite
-    if os.path.exists(TEST_DB_PATH):
-        try:
-            os.remove(TEST_DB_PATH)
-        except Exception:
-            pass
+    _rate_limit_windows.clear()
 
 @pytest_asyncio.fixture
 async def client():
@@ -42,9 +41,13 @@ async def client():
         yield ac
 
 async def get_token_for(client: AsyncClient, email: str) -> str:
+    if email in _token_cache:
+        return _token_cache[email]
     res = await client.post("/api/v1/auth/login", json={"email": email, "password": "Demo@12345"})
     assert res.status_code == 200, f"Login failed for {email}: {res.text}"
-    return res.json()["access_token"]
+    token = res.json()["access_token"]
+    _token_cache[email] = token
+    return token
 
 @pytest_asyncio.fixture
 async def citizen_prd_token(client: AsyncClient):
@@ -73,3 +76,11 @@ async def admin_mao_token(client: AsyncClient):
 @pytest_asyncio.fixture
 async def auditor_mao_token(client: AsyncClient):
     return await get_token_for(client, "auditor@mao.test")
+
+@pytest_asyncio.fixture
+async def officer_mao_token(client: AsyncClient):
+    return await get_token_for(client, "officer@mao.test")
+
+@pytest_asyncio.fixture
+async def citizen_mao_token(client: AsyncClient):
+    return await get_token_for(client, "citizen@mao.test")

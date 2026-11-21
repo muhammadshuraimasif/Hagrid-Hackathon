@@ -61,6 +61,13 @@ async def test_lockout_after_5_failures(client: AsyncClient):
     assert res_blocked.status_code == 423
     assert res_blocked.json()["code"] == "LOCKED"
 
+    # Reset lockout state so subsequent tests can use this user
+    async with AsyncSessionLocal() as session:
+        await session.execute(
+            update(User).where(User.email == email).values(failed_attempts=0, locked_until=None)
+        )
+        await session.commit()
+
 @pytest.mark.asyncio
 async def test_refresh_token_rotation_success(client: AsyncClient):
     # Login

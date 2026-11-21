@@ -14,7 +14,7 @@ from api.schemas import (
     ConsentOut,
     ConsentEventOut,
 )
-from api.dependencies import get_current_user
+from api.dependencies import get_current_user, require_roles
 from api.consent import read_person_data
 from api.audit import record_audit_event
 
@@ -37,7 +37,7 @@ async def list_consents(
 async def grant_consent(
     payload: ConsentGrantRequest,
     request: Request,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles("citizen")),
     db: AsyncSession = Depends(get_db)
 ):
     request_id = getattr(request.state, "request_id", None)
@@ -98,7 +98,7 @@ async def grant_consent(
 async def withdraw_consent(
     payload: ConsentWithdrawRequest,
     request: Request,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles("citizen")),
     db: AsyncSession = Depends(get_db)
 ):
     """

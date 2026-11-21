@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.database import get_db
 from api.models import User, Document, Case
 from api.schemas import DocumentInit, DocumentOut
-from api.dependencies import get_current_user
+from api.dependencies import get_current_user, require_roles
 from api.audit import record_audit_event
 
 router = APIRouter(prefix="/api/v1/documents", tags=["Documents"])
@@ -25,7 +25,7 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 async def init_upload(
     payload: DocumentInit,
     request: Request,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles("citizen", "helper")),
     db: AsyncSession = Depends(get_db)
 ):
     if payload.mime_type not in ALLOWED_MIMES:

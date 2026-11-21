@@ -24,8 +24,12 @@ def _get_hasher() -> PasswordHasher:
 
 ph = _get_hasher()
 
+_cheap_ph = PasswordHasher(time_cost=1, memory_cost=1024, parallelism=1)
+
 def hash_password(password: str) -> str:
     """Hash password using Argon2."""
+    if os.getenv("TESTING") == "1":
+        return _cheap_ph.hash(password)
     return ph.hash(password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:

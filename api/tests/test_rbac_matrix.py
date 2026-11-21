@@ -8,9 +8,17 @@ from api.models import AuditLog
 ENDPOINTS = [
     ("/api/v1/admin/users", "GET", ["admin"]),
     ("/api/v1/admin/api-keys", "GET", ["admin"]),
+    ("/api/v1/admin/chaos", "GET", ["admin"]),
     ("/api/v1/audit", "GET", ["auditor"]),
     ("/api/v1/audit/verify", "GET", ["auditor"]),
+    ("/api/v1/cases", "GET", ["citizen", "helper", "officer"]),
     ("/api/v1/cases/nonexistent-case-id/close", "POST", ["officer", "admin"]),
+    ("/api/v1/cases/nonexistent-case-id/escalate", "POST", ["officer", "admin"]),
+    ("/api/v1/documents/init", "POST", ["citizen", "helper"]),
+    ("/api/v1/sync/push", "POST", ["citizen", "helper"]),
+    ("/api/v1/sync/pull", "GET", ["citizen", "helper"]),
+    ("/api/v1/consent/grant", "POST", ["citizen"]),
+    ("/api/v1/consent/withdraw", "POST", ["citizen"]),
 ]
 
 ALL_ROLES = ["citizen", "helper", "officer", "admin", "auditor"]
@@ -48,7 +56,7 @@ async def test_rbac_matrix(
         raise ValueError(f"Unsupported method {method}")
 
     if role in allowed_roles:
-        assert res.status_code in [200, 201, 404], f"Expected {role} to pass RBAC for {endpoint}, got {res.status_code}: {res.text}"
+        assert res.status_code in [200, 201, 400, 404, 409, 422], f"Expected {role} to pass RBAC for {endpoint}, got {res.status_code}: {res.text}"
     else:
         assert res.status_code == 403, f"Expected {role} to be FORBIDDEN on {endpoint}, got {res.status_code}"
         envelope = res.json()
