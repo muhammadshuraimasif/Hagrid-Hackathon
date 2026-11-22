@@ -1,0 +1,58 @@
+# Render Deployment Blueprint for Project Amaanat
+# Sourced from docs/BLUEPRINT.md and AGENTS.md
+# PROTOTYPE ONLY - Hackathon Prototype Deployment
+
+services:
+  # 1. FastAPI Core Backend Service
+  - type: web
+    name: amaanat-api
+    runtime: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r api/requirements.txt
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: IS_PROTOTYPE
+        value: "true"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: amaanat-postgres
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DECISION_TOKEN_SECRET
+        generateValue: true
+      - key: HOLD_DURATION_SECONDS
+        value: "60"
+      - key: TESTING
+        value: "0"
+      - key: MOCK_SERVICES_URL
+        value: https://amaanat-mocks.onrender.com
+      - key: GEMINI_API_KEY
+        sync: false
+
+  # 2. Mock Public Rails Service (NADRA, Raast, Telco)
+  - type: web
+    name: amaanat-mocks
+    runtime: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r api/requirements.txt
+    startCommand: uvicorn mocks.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: IS_PROTOTYPE
+        value: "true"
+
+databases:
+  # 3. PostgreSQL Database Instance
+  - name: amaanat-postgres
+    region: oregon
+    plan: free
+    databaseName: amaanat_db
+    user: amaanat_admin
