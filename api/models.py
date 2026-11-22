@@ -278,3 +278,64 @@ class EvalResult(Base):
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
 
+class ModelCall(Base):
+    __tablename__ = "model_calls"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="SET NULL"), nullable=True, index=True)
+    model = Column(String(64), nullable=False, index=True)
+    prompt_version = Column(String(32), nullable=False)
+    input_hash = Column(String(64), nullable=False, index=True)
+    latency_ms = Column(Float, nullable=False)
+    cost_estimate = Column(Float, default=0.0, nullable=False)
+    ok = Column(Boolean, nullable=False, index=True)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class DocumentAnalysis(Base):
+    __tablename__ = "document_analyses"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    case_id = Column(String(36), ForeignKey("cases.id", ondelete="CASCADE"), nullable=False, index=True)
+    document_id = Column(String(36), ForeignKey("documents.id", ondelete="SET NULL"), nullable=True, index=True)
+    fields = Column(JSON, nullable=False, default=dict)
+    field_confidences = Column(JSON, nullable=False, default=dict)
+    blur_score = Column(Float, nullable=False)
+    authenticity_score = Column(Float, nullable=False)
+    qr_result = Column(JSON, nullable=False, default=dict)
+    suspect_boxes = Column(JSON, nullable=False, default=list)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class ScamScan(Base):
+    __tablename__ = "scam_scans"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="SET NULL"), nullable=True, index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    message_hash = Column(String(64), nullable=False, index=True)
+    redacted_text = Column(Text, nullable=False)
+    verdict = Column(String(32), nullable=False, index=True)  # LIKELY_SCAM, UNSURE, VERIFIED
+    confidence = Column(Float, nullable=False)
+    red_flags = Column(JSON, nullable=False, default=list)
+    voter_breakdown = Column(JSON, nullable=False, default=dict)
+    feedback = Column(String(32), nullable=True)  # helpful, false_positive, false_negative
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class ScamVerification(Base):
+    __tablename__ = "scam_verifications"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    code = Column(String(32), nullable=False, unique=True, index=True)
+    case_id = Column(String(36), ForeignKey("cases.id", ondelete="SET NULL"), nullable=True, index=True)
+    recipient_masked = Column(String(64), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    is_used = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+

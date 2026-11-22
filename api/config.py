@@ -17,5 +17,7 @@ class Settings(BaseSettings):
     MOCK_SERVICES_URL: str = "http://127.0.0.1:8001"
     CIRCUIT_BREAKER_FAIL_MAX: int = 3
     CIRCUIT_BREAKER_RESET_TIMEOUT: float = 2.0
+    GEMINI_API_KEY: Optional[str] = None
+    TESSERACT_CMD: Optional[str] = "tesseract"
 
 settings = Settings()

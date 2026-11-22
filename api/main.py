@@ -10,7 +10,7 @@ from api.config import settings
 from api.database import init_db
 from api.seed import seed_data
 from api.middleware import RequestIdAndPrototypeMiddleware, RateLimitMiddleware
-from api.routers import auth, admin, audit, public, ops, cases, documents, sync, consent, rules, decisions, eval
+from api.routers import auth, admin, audit, public, ops, cases, documents, sync, consent, rules, decisions, eval, scam, assistant
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("amaanat-api")
@@ -132,5 +132,7 @@ app.include_router(consent.router)
 app.include_router(rules.router)
 app.include_router(decisions.router)
 app.include_router(eval.router)
+app.include_router(scam.router)
+app.include_router(assistant.router)
 
     

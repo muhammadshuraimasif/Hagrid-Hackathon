@@ -172,12 +172,14 @@ def evaluate_decision_policy(policy_input: PolicyInput) -> PolicyOutput:
                 unit_pkr
             )
 
-            # Route to ASK if VOI > 0, fewer than 2 ask rounds, and account title didn't fail fraud check
+            # Route to ASK if VOI > 0, fewer than 2 ask rounds, and no fraud/tamper/anomaly flag
             account_mismatch = not policy_input.hard_guards.account_title_matches_claimant
+            has_anomaly = (not policy_input.hard_guards.no_duplicate_or_anomaly) or (policy_input.r_fraud > 0.40)
             if (
                 highest_voi > 0
                 and policy_input.ask_rounds_so_far < 2
                 and not account_mismatch
+                and not has_anomaly
                 and policy_input.hard_guards.rule_set_published
             ):
                 route = "ASK"
@@ -187,6 +189,8 @@ def evaluate_decision_policy(policy_input: PolicyInput) -> PolicyOutput:
                 route = "HUMAN"
                 if account_mismatch:
                     selected_reason_code = "FRAUD_ACCOUNT_MISMATCH"
+                elif has_anomaly:
+                    selected_reason_code = "FRAUD_ANOMALY"
                 elif policy_input.ask_rounds_so_far >= 2:
                     selected_reason_code = "MAX_ASK_ROUNDS_REACHED"
                 else:

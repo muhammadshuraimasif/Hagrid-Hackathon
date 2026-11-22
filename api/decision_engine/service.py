@@ -33,6 +33,9 @@ from api.decision_engine.policy import (
 from api.decision_engine.scorers import StubIdentityScorer, StubDocumentScorer
 from api.decision_engine.calibration import IsotonicCalibrator
 from api.rules.engine import evaluate_case as evaluate_rule_set
+from api.ai.identity_resolver import RealIdentityResolver
+from api.ai.document_reader import RealDocumentReader
+from api.ai.anomaly import evaluate_anomalies
 from api.clients.nadra_client import NadraClient
 from api.clients.raast_client import RaastClient
 from api.security import mint_decision_token, verify_decision_token
@@ -160,11 +163,11 @@ async def evaluate_case_full(
         logger.warning(f"NADRA lookup failed or circuit open: {exc}")
         services_healthy = False
 
-    # 2. Scorer evaluations
-    id_scorer = StubIdentityScorer()
+    # 2. Scorer evaluations (Production AI Components replacing Stubs)
+    id_scorer = RealIdentityResolver(thresholds=rule_def.get("thresholds"))
     c_identity, id_trace = id_scorer.score(person_dict, nadra_record)
 
-    doc_scorer = StubDocumentScorer()
+    doc_scorer = RealDocumentReader(authenticity_min=float(rule_def.get("thresholds", {}).get("doc_authenticity_min", 0.80)))
     # Add dummy document if none uploaded but case says photo attached
     if not uploaded_docs and step_data.get("has_cnic_document"):
         uploaded_docs = [{"id": "doc-auto", "filename": "cnic_front.jpg", "doc_type": "cnic_front", "is_complete": True}]
@@ -191,11 +194,40 @@ async def evaluate_case_full(
     if not no_rule_unknown:
         c_rules = 0.20
 
+    # 4. Anomaly Evaluation
+    recent_cases_res = await db.execute(
+        select(Case).where(Case.tenant_id == case.tenant_id).order_by(Case.created_at.desc()).limit(50)
+    )
+    recent_cases_list = [
+        {
+            "case_id": rc.id,
+            "cnic": (rc.step_data or {}).get("cnic"),
+            "account_number": (rc.step_data or {}).get("account_number") or (rc.step_data or {}).get("iban"),
+            "client_uuid": (rc.step_data or {}).get("client_uuid"),
+            "created_at": rc.created_at
+        }
+        for rc in recent_cases_res.scalars().all()
+    ]
+    is_helper_claim = (actor_user.role == "helper")
+    r_fraud_anomaly, anomaly_flags = evaluate_anomalies(
+        case_data={
+            "case_id": case.id,
+            "cnic": cnic,
+            "account_number": account_number,
+            "client_uuid": step_data.get("client_uuid"),
+            "created_at": case.created_at
+        },
+        recent_cases=recent_cases_list,
+        is_helper_device=is_helper_claim
+    )
+    r_fraud = max(r_fraud, r_fraud_anomaly)
+    has_anomaly_flag = bool(step_data.get("anomaly_flag", False) or len(anomaly_flags) > 0)
+
     # Assemble Hard Guards
     hard_guards = PolicyHardGuards(
         amount_within_cap=(claim_amount <= tenant_cap),
         identity_match_exact=(id_trace.get("identity_match_exact", False)),
-        no_duplicate_or_anomaly=(step_data.get("anomaly_flag", False) is False),
+        no_duplicate_or_anomaly=(not has_anomaly_flag),
         all_required_fields_confirmed=True,
         no_rule_returned_unknown=no_rule_unknown,
         document_authenticity_above_limit=(doc_trace.get("document_authenticity_above_limit", False)),
