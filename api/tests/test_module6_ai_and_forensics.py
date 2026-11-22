@@ -191,7 +191,27 @@ async def test_odd_message_is_unsure():
     """Ambiguous or odd message without clear indicators is classified as UNSURE."""
     odd_msg = "Please confirm your availability for an interview tomorrow regarding village relief."
     result = await scam_shield.scan_message(odd_msg)
-    assert result.verdict in {"UNSURE", "VERIFIED"}
+    assert result.verdict == "UNSURE"
+
+
+@pytest.mark.asyncio
+async def test_message_without_valid_code_is_at_most_unsure_never_verified():
+    """A message may be labelled Verified ONLY when it carries a valid HMAC verification code.
+    A relief-style message with no valid code can be at most Unsure (never Verified)."""
+    urgent_msg = "Urgent: Flood relief grant distribution starts tomorrow at Municipal High School. Bring original CNIC."
+    res = await scam_shield.scan_message(urgent_msg)
+    assert res.verdict == "UNSURE"
+    assert res.verdict != "VERIFIED"
+
+
+def test_hard_scam_benchmark_runs_and_reports_honest_metrics():
+    """Evaluates the 120 non-templated hard message benchmark."""
+    from eval.hard_scam_benchmark import evaluate_hard_benchmark
+    res = evaluate_hard_benchmark(scam_shield)
+    assert res["sample_size"] == 120
+    assert "precision" in res
+    assert "confusion_matrix" in res
+    assert res["false_positive_rate"] <= 0.05
 
 
 def test_hard_genuine_messages_evaluation_metrics():

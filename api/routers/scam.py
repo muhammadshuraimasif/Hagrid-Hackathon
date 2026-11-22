@@ -112,7 +112,10 @@ async def get_scam_metrics_endpoint(
     current_user: User = Depends(require_roles("admin", "auditor"))
 ):
     """Returns held-out test set performance metrics for Scam Shield."""
+    from eval.hard_scam_benchmark import evaluate_hard_benchmark
+    hard_metrics = evaluate_hard_benchmark(scam_shield)
     return {
         "prototype": True,
-        "metrics": scam_shield.eval_metrics
+        "templated_metrics": scam_shield.eval_metrics,
+        "hard_non_templated_metrics": hard_metrics
     }

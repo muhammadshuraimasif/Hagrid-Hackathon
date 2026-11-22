@@ -237,18 +237,19 @@ class ScamShieldEngine:
         # Weighting: Rules (0.45), ML (0.35), LLM (0.20)
         combined_scam_prob = (0.45 * rule_score) + (0.35 * ml_score) + (0.20 * llm_score)
 
-        if combined_scam_prob >= 0.65:
+        if combined_scam_prob >= 0.60:
             verdict = "LIKELY_SCAM"
             confidence = round(combined_scam_prob, 3)
             recommendation = "WARNING: This message exhibits high-confidence scam markers. Do not send money, OTPs, or personal documents."
-        elif combined_scam_prob >= 0.35:
+        else:
+            # BINDING RULE: A message may be labelled Verified ONLY when it carries a valid HMAC
+            # verification code. A relief-style message with no valid code can be at most Unsure (never Verified).
             verdict = "UNSURE"
             confidence = round(combined_scam_prob, 3)
-            recommendation = "CAUTION: This message contains mixed or unusual signals. Verify with an official relief officer before proceeding."
-        else:
-            verdict = "VERIFIED"
-            confidence = round(1.0 - combined_scam_prob, 3)
-            recommendation = "Notice appears consistent with standard relief communications, but always check for official AMN codes."
+            recommendation = (
+                "UNVERIFIED NOTICE: This communication lacks an authentic cryptographic Amaanat verification code (AMN-XXXXXXXX). "
+                "Official relief notices carry an AMN code. Treat as unverified and consult your local municipal assistance officer."
+            )
 
         return ScamScanResult(
             verdict=verdict,
