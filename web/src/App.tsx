@@ -1,39 +1,95 @@
-import React from 'react';
+import { useState } from 'react';
+import { PrototypeBadge } from './components/common/PrototypeBadge';
+import { CitizenPortal } from './components/citizen/CitizenPortal';
+import { Users, FileText, Gavel, HandHelping } from 'lucide-react';
+
+export type AppView = 'citizen' | 'backoffice' | 'judge' | 'helper';
 
 export default function App() {
+  const [view, setView] = useState<AppView>('citizen');
+
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
-      {/* Universal Mandatory Prototype Banner */}
-      <header className="bg-amber-500 text-black px-4 py-2 text-center font-bold tracking-wide uppercase shadow-sm">
-        ⚠️ PROTOTYPE ONLY — Hagrid&apos;s Hackathon &apos;26 — Synthetic Data Only
-      </header>
+    <div className="min-h-screen flex flex-col bg-slate-100 font-sans">
+      {/* 1. Mandatory Uncompromising Prototype Banner */}
+      <PrototypeBadge />
 
-      <main className="flex-1 max-w-4xl mx-auto w-full p-6 flex flex-col items-center justify-center text-center">
-        <h1 className="text-4xl font-extrabold text-slate-800 mb-4 tracking-tight">
-          Project Amaanat (امانت)
-        </h1>
-        <p className="text-lg text-slate-600 max-w-xl mb-6">
-          AI on Public Rails: Transparent, fail-closed DPI relief assistance prototype for Pakistan.
-        </p>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full text-left">
-          <div className="p-4 bg-white rounded-lg border border-slate-200 shadow-sm">
-            <h2 className="font-semibold text-slate-800 mb-1">Citizen Portal</h2>
-            <p className="text-sm text-slate-500">Voice-and-icon claims, offline queue, plain-language Urdu status.</p>
-          </div>
-          <div className="p-4 bg-white rounded-lg border border-slate-200 shadow-sm">
-            <h2 className="font-semibold text-slate-800 mb-1">Officer Queue</h2>
-            <p className="text-sm text-slate-500">Fail-closed human hand-offs with full context packets.</p>
-          </div>
-          <div className="p-4 bg-white rounded-lg border border-slate-200 shadow-sm">
-            <h2 className="font-semibold text-slate-800 mb-1">Auditor & Twin</h2>
-            <p className="text-sm text-slate-500">Hash-chained audit log & live rule sandbox simulations.</p>
-          </div>
+      {/* 2. Top Portal View Switcher Bar */}
+      <div className="bg-slate-900 text-white text-xs px-4 py-2 flex items-center justify-between border-b border-slate-800">
+        <div className="flex items-center space-x-2">
+          <span className="font-black text-amber-400 text-sm">AMAANAT</span>
+          <span className="text-slate-400">|</span>
+          <span className="text-slate-300">DPI Relief Grant System (Prototype)</span>
         </div>
-      </main>
 
-      <footer className="text-center py-4 text-xs text-slate-400">
-        Amaanat Prototype · Zero Real Personal Data · Three Exits: AUTO / ASK / HUMAN
+        <nav className="flex items-center space-x-1 sm:space-x-2">
+          <button
+            onClick={() => setView('citizen')}
+            className={`px-3 py-1.5 rounded-lg font-bold flex items-center space-x-1 transition ${
+              view === 'citizen' ? 'bg-emerald-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5 mr-1" />
+            <span>Citizen Claim</span>
+          </button>
+
+          <button
+            onClick={() => setView('backoffice')}
+            className={`px-3 py-1.5 rounded-lg font-bold flex items-center space-x-1 transition ${
+              view === 'backoffice' ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5 mr-1" />
+            <span>Back-Office</span>
+          </button>
+
+          <button
+            onClick={() => setView('judge')}
+            className={`px-3 py-1.5 rounded-lg font-bold flex items-center space-x-1 transition ${
+              view === 'judge' ? 'bg-amber-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+            }`}
+          >
+            <Gavel className="w-3.5 h-3.5 mr-1" />
+            <span>Judge Console</span>
+          </button>
+
+          <button
+            onClick={() => setView('helper')}
+            className={`px-3 py-1.5 rounded-lg font-bold flex items-center space-x-1 transition ${
+              view === 'helper' ? 'bg-teal-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+            }`}
+          >
+            <HandHelping className="w-3.5 h-3.5 mr-1" />
+            <span>Helper Mode</span>
+          </button>
+        </nav>
+      </div>
+
+      {/* 3. Main Dynamic Content */}
+      <div className="flex-1">
+        {view === 'citizen' && <CitizenPortal />}
+        {view === 'backoffice' && (
+          <div className="p-8 max-w-4xl mx-auto text-center">
+            <h2 className="text-2xl font-bold text-slate-800 mb-2">Back-Office Suite Loading...</h2>
+            <p className="text-slate-600 text-sm">Officer Queue, Admin Twin, Auditor Ledger, & Evaluation Dashboard.</p>
+          </div>
+        )}
+        {view === 'judge' && (
+          <div className="p-8 max-w-4xl mx-auto text-center">
+            <h2 className="text-2xl font-bold text-slate-800 mb-2">Judge Console Loading...</h2>
+            <p className="text-slate-600 text-sm">Interactive Phone View + Back-Office Control + Demo Scenario Seeding.</p>
+          </div>
+        )}
+        {view === 'helper' && (
+          <div className="p-8 max-w-4xl mx-auto text-center">
+            <h2 className="text-2xl font-bold text-slate-800 mb-2">Helper Mode Loading...</h2>
+            <p className="text-slate-600 text-sm">Family picture cards & PIN-delegated assistance.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <footer className="bg-slate-900 text-slate-400 text-center py-2 text-[11px] border-t border-slate-800">
+        Project Amaanat (امانت) — Hagrid&apos;s Hackathon 2026 — Fail Closed to HUMAN — Zero Real Personal Data
       </footer>
     </div>
   );

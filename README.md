@@ -62,7 +62,32 @@ npm install
 npm run dev
 ```
 
-### Docker Compose
+### Full Local Development (`scripts/dev.ps1`)
+Runs the standalone public rail mocks (NADRA, Raast, Telco SMS), the FastAPI backend server, and the Vite frontend simultaneously:
 ```powershell
-docker-compose up --build
+.\scripts\dev.ps1
 ```
+
+### Seeded Credentials (Tenant `prd`)
+Password for all demo accounts: `Demo@12345`
+- Citizen: `citizen@prd.test`
+- Helper: `helper@prd.test`
+- Officer: `officer@prd.test`
+- Admin: `admin@prd.test`
+- Auditor: `auditor@prd.test`
+
+---
+
+## Evaluation & Limitations
+
+### Evaluation Harness (`/eval`)
+The evaluation harness (`eval/harness.py`) executes non-parametric isotonic calibration and risk-bounded threshold optimization over a 3,000-case synthetic dataset with exact Clopper-Pearson 95% binomial bounds.
+
+### Known Limitations
+1. **Simulated vs. Real Scorers in Batch Evaluation**:
+   - `eval/harness.py` computes batch performance across 3,000 cases using **simulated component scores** derived from dataset metadata (income, family size, card clarity, and identity match) to allow fast, reproducible statistical calibration.
+   - The **REAL AI scorers** (`RealIdentityResolver`, `RealDocumentReader`, OpenCV ELA/QR decoders, and anomaly rules) are executed during live claim evaluations (`POST /cases/{id}/evaluate`) and thoroughly verified in `api/tests/test_module6_ai_and_forensics.py`.
+2. **Synthetic Data**: All CNICs, IBANs, phone numbers, and names are generated synthetically for Hagrid's Hackathon 2026. No real citizen data is ever collected or processed.
+3. **Card Forgery Scope**: Document forensics (ELA, glare, blur, and boundary checks) are tuned to detect common alterations and QR tampering on standard Pakistani CNIC layouts.
+4. **Urdu Model Nuances**: Dialectical variants in Roman-Urdu and spoken Urdu may occasionally require human officer review (failing closed).
+
