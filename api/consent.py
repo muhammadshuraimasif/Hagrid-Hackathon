@@ -150,4 +150,15 @@ async def read_person_data(
     if "field_states" in restricted_fields:
         response_data["field_states"] = person.field_states or {}
 
+    # Audit successful consent-governed read
+    await record_audit_event(
+        actor_type="user",
+        action="consent.read",
+        entity_type="person",
+        actor_id=principal.id,
+        entity_id=person_id,
+        request_id=request_id,
+        tenant_id=principal.tenant_id,
+    )
+
     return response_data

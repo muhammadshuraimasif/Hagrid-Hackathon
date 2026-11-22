@@ -248,6 +248,10 @@ async def evaluate_case_full(
     active_calibrator = calibrator or _default_calibrator
     seed_val = override_seed if override_seed is not None else 42
 
+    candidates = None
+    if getattr(rule_eval, "ask_target", None):
+        candidates = [{"id": rule_eval.ask_target, "q_e": 0.95}]
+
     policy_input = PolicyInput(
         c_identity=c_identity,
         c_document=c_document,
@@ -258,6 +262,7 @@ async def evaluate_case_full(
         ask_rounds_so_far=ask_rounds,
         rule_set_def=rule_def,
         calibrator=active_calibrator,
+        candidate_evidence=candidates,
         seed=seed_val,
     )
 

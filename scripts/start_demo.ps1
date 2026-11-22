@@ -1,4 +1,4 @@
-﻿# Project Amaanat - Turnkey Offline Demo Launcher
+# Project Amaanat - Turnkey Offline Demo Launcher
 # PROTOTYPE ONLY - Hackathon Demonstration Environment
 # Sourced from docs/BLUEPRINT.md and AGENTS.md
 

@@ -380,6 +380,7 @@ async def decide_case_endpoint(
         "p": decision.p,
         "expected_cost": decision.expected_cost,
         "citizen_reason": decision.citizen_reason,
+        "ask_target": (decision.trace or {}).get("ask_target"),
         "trace": decision.trace,
         "case_status": case.status,
     }
@@ -416,6 +417,7 @@ async def evaluate_case_endpoint(
         "decision_token": decision.decision_token,
         "payment_reference": decision.payment_reference,
         "citizen_reason": decision.citizen_reason,
+        "ask_target": (decision.trace or {}).get("ask_target"),
         "trace": decision.trace,
         "case_status": case.status,
     }

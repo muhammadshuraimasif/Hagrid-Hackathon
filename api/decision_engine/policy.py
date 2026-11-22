@@ -73,6 +73,13 @@ class PolicyOutput(BaseModel):
     trace: Dict[str, Any]
 
 
+def compute_break_even_tau(cost_table: Dict[str, Any]) -> float:
+    """Break-even tau derivation: 1 - (human_cost / wrong_approval_cost)."""
+    wrong_approval = float(cost_table.get("wrong_approval", 100))
+    human_review = float(cost_table.get("human_review", 4))
+    return 1.0 - (human_review / wrong_approval)
+
+
 def calculate_next_best_evidence(
     candidates: List[Dict[str, Any]],
     human_cost: float,
@@ -172,12 +179,15 @@ def evaluate_decision_policy(policy_input: PolicyInput) -> PolicyOutput:
                 unit_pkr
             )
 
-            # Route to ASK if VOI > 0, fewer than 2 ask rounds, and no fraud/tamper/anomaly flag
+            # Route to ASK if VOI > 0, within allowed ask rounds, and no fraud/tamper/anomaly flag
             account_mismatch = not policy_input.hard_guards.account_title_matches_claimant
             has_anomaly = (not policy_input.hard_guards.no_duplicate_or_anomaly) or (policy_input.r_fraud > 0.40)
+            thresholds_cfg = policy_input.rule_set_def.get("thresholds", {})
+            # Name/identity variation has exactly ONE ASK round per Blueprint 12.4 Step 4; general missing docs have max 2
+            max_rounds = 1 if not policy_input.hard_guards.identity_match_exact else int(thresholds_cfg.get("max_ask_rounds", 2))
             if (
                 highest_voi > 0
-                and policy_input.ask_rounds_so_far < 2
+                and policy_input.ask_rounds_so_far < max_rounds
                 and not account_mismatch
                 and not has_anomaly
                 and policy_input.hard_guards.rule_set_published
@@ -191,7 +201,7 @@ def evaluate_decision_policy(policy_input: PolicyInput) -> PolicyOutput:
                     selected_reason_code = "FRAUD_ACCOUNT_MISMATCH"
                 elif has_anomaly:
                     selected_reason_code = "FRAUD_ANOMALY"
-                elif policy_input.ask_rounds_so_far >= 2:
+                elif policy_input.ask_rounds_so_far >= max_rounds:
                     selected_reason_code = "MAX_ASK_ROUNDS_REACHED"
                 else:
                     selected_reason_code = "ESCALATED_HUMAN"

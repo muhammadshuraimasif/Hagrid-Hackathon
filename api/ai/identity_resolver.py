@@ -79,6 +79,18 @@ def roman_urdu_phonetic_key(word: str) -> str:
     return w
 
 
+def extract_raw_clean_tokens(name: str) -> List[str]:
+    """Cleans punctuation, transliterates Urdu to Roman, and strips honorifics without variant mapping."""
+    if not name:
+        return []
+    n = unicodedata.normalize("NFKC", name).strip()
+    if any("\u0600" <= c <= "\u06FF" for c in n):
+        n = normalize_urdu_to_roman(n)
+    n = re.sub(r"[^A-Za-z\s]", " ", n).upper()
+    tokens = [t.strip() for t in n.split() if t.strip()]
+    return [t for t in tokens if t not in HONORIFICS]
+
+
 def normalize_pakistani_name(name: str) -> Tuple[str, List[str]]:
     """Cleans, strips honorifics, transliterates Urdu, maps variants, and normalises name."""
     if not name:
@@ -168,26 +180,39 @@ class RealIdentityResolver(IdentityScorer):
         claimant_raw_name = person_data.get("canonical_name") or person_data.get("name") or ""
         nadra_raw_name = nadra_record.get("name") or ""
 
-        # 1. Normalize names
+        # 1. Raw cleaned tokens (without dictionary substitution)
+        c_raw_tokens = extract_raw_clean_tokens(claimant_raw_name)
+        n_raw_tokens = extract_raw_clean_tokens(nadra_raw_name)
+        c_raw_str = " ".join(c_raw_tokens)
+        n_raw_str = " ".join(n_raw_tokens)
+
+        # 2. Canonical tokens (variant mapped: e.g. MOHD -> MUHAMMAD, MUHAMMED -> MUHAMMAD)
         claimant_norm, c_tokens = normalize_pakistani_name(claimant_raw_name)
         nadra_norm, n_tokens = normalize_pakistani_name(nadra_raw_name)
 
-        # 2. Similarity metrics
-        # Jaro-Winkler (character sequence)
-        jw_sim = JaroWinkler.similarity(claimant_norm, nadra_norm)
-        # Token-set ratio (unordered token overlap)
-        token_sim = fuzz.token_set_ratio(claimant_norm, nadra_norm) / 100.0
+        # 3. Direct lexical similarity metrics on un-mapped tokens
+        jw_sim = JaroWinkler.similarity(c_raw_str, n_raw_str)
+        token_sim = fuzz.token_set_ratio(c_raw_str, n_raw_str) / 100.0
+        raw_similarity = max(jw_sim, token_sim)
 
-        # Phonetic key match
+        # 4. Phonetic & Canonical equivalence
         c_phonetics = [roman_urdu_phonetic_key(t) for t in c_tokens]
         n_phonetics = [roman_urdu_phonetic_key(t) for t in n_tokens]
         phonetic_match = bool(c_phonetics and c_phonetics == n_phonetics)
+        canonical_match = bool(claimant_norm and claimant_norm == nadra_norm)
 
-        # Combined composite name similarity
-        if claimant_norm == nadra_norm or phonetic_match:
+        # 5. Combined composite name similarity
+        if c_raw_str == n_raw_str:
             name_similarity = 1.0
+        elif raw_similarity >= self.exact_threshold:
+            # High lexical similarity (e.g. Muhammad vs Mohammad, JW=0.925 >= 0.92)
+            name_similarity = raw_similarity
+        elif canonical_match or phonetic_match:
+            # Recognized Pakistani variant/abbreviation (e.g. Muhammed vs Mohd, Md vs Muhammad)
+            # Evaluates into the PROBABLE band [0.75, 0.92) per Blueprint 9.1
+            name_similarity = 0.85
         else:
-            name_similarity = max(jw_sim, token_sim)
+            name_similarity = raw_similarity
 
         # 3. CNIC validation & transposition detection
         c_cnic = person_data.get("cnic") or ""
