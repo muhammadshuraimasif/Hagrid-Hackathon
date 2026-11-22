@@ -329,9 +329,8 @@ export const EvalDashboard: React.FC = () => {
                 return (
                   <div
                     key={ch.channel}
-                    className={`p-3 rounded-xl border flex items-center justify-between ${
-                      isDisparate ? 'bg-rose-50 border-rose-300 text-rose-950 font-bold' : 'bg-slate-50 border-slate-200'
-                    }`}
+                    className={`p-3 rounded-xl border flex items-center justify-between ${isDisparate ? 'bg-rose-50 border-rose-300 text-rose-950 font-bold' : 'bg-slate-50 border-slate-200'
+                      }`}
                   >
                     <span className="capitalize">{ch.channel} Channel (N = {ch.n})</span>
                     <span>Human Review Rate: {ch.human_review_rate}%</span>
