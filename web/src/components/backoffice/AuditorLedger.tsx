@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { api } from '../../api/client';
 import {
   CheckCircle2,
@@ -14,69 +14,65 @@ export const AuditorLedger: React.FC = () => {
   const [verifying, setVerifying] = useState<boolean>(false);
   const [selectedTrace, setSelectedTrace] = useState<any | null>(null);
 
-  // Mock hash-chained audit log entries
-  const auditLogs = [
-    {
-      id: 104,
-      entity_type: 'case',
-      entity_id: 'case-demo-01',
-      action: 'DECISION_EVALUATED',
-      actor_role: 'system',
-      created_at: '2026-11-22T04:15:00Z',
-      prev_hash: '8f4a1c9b2e7741d0a5528bf81f349a888c3a50239162985172083bcf3a1e2894',
-      current_hash: '3d8e9c1a5f6b70124810935cfba8921049281bc89a3f20849208398102398401',
-      rule_version: 'v1.0',
-    },
-    {
-      id: 105,
-      entity_type: 'consent',
-      entity_id: 'person-42101',
-      action: 'CONSENT_GRANTED',
-      actor_role: 'citizen',
-      created_at: '2026-11-22T04:16:30Z',
-      prev_hash: '3d8e9c1a5f6b70124810935cfba8921049281bc89a3f20849208398102398401',
-      current_hash: 'a1b2c3d4e5f60718293a4b5c6d7e8f90123456789abcdef0123456789abcdef0',
-      rule_version: 'v1.0',
-    },
-    {
-      id: 106,
-      entity_type: 'case',
-      entity_id: 'case-demo-02',
-      action: 'OFFICER_REJECTED',
-      actor_role: 'officer',
-      created_at: '2026-11-22T04:18:12Z',
-      prev_hash: 'a1b2c3d4e5f60718293a4b5c6d7e8f90123456789abcdef0123456789abcdef0',
-      current_hash: '55aa88bb112233445566778899aabbccddeeff00112233445566778899aabbcc',
-      rule_version: 'v1.0',
-    },
-  ];
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [chainOk, setChainOk] = useState<boolean>(true);
+  const [replaying, setReplaying] = useState<number | null>(null);
+
+  const loadLogs = async () => {
+    try {
+      const rows = await api.get<any[]>('/audit?limit=50');
+      setAuditLogs(rows || []);
+      setLoadError(null);
+    } catch (e: any) {
+      setLoadError(e?.message || 'Could not load audit log (auditor role required).');
+    }
+  };
+
+  useEffect(() => {
+    loadLogs();
+  }, []);
 
   const handleVerifyChain = async () => {
     setVerifying(true);
     try {
-      const res = await api.get('/audit/verify-chain');
-      setChainStatus(res.is_valid ? 'OK: Cryptographic chain verified intact with 0 breaks.' : `BROKEN at entry ${res.broken_at_id}`);
-    } catch {
-      setChainStatus('OK: Cryptographic SHA-256 chain verified intact across 106 entries.');
+      const res = await api.get<any>('/audit/verify-chain');
+      setChainOk(!!res.ok);
+      setChainStatus(
+        res.ok
+          ? `OK: SHA-256 chain verified intact across ${res.checked} entries (0 breaks).`
+          : `TAMPER DETECTED: chain broken at entry #${res.broken_at_id} (checked ${res.checked}).`
+      );
+      loadLogs();
+    } catch (e: any) {
+      // Fail closed: never report a chain as intact when verification could not run
+      setChainOk(false);
+      setChainStatus(`Verification could not run: ${e?.message || 'unknown error'}`);
     } finally {
       setVerifying(false);
     }
   };
 
-  const handleReplayDecision = (entry: any) => {
-    setSelectedTrace({
-      entry_id: entry.id,
-      replayed_under_version: entry.rule_version,
-      original_outcome: 'AUTO',
-      replayed_outcome: 'AUTO',
-      divergence: false,
-      trace_details: {
-        tau_used: 0.96,
-        calibrated_p: 0.975,
-        guards_all_passed: true,
-      },
-    });
+  const handleReplayDecision = async (entry: any) => {
+    setReplaying(entry.id);
+    try {
+      const res = await api.get<any>(`/decisions/${entry.entity_id}/replay`);
+      setSelectedTrace({
+        entry_id: entry.id,
+        replayed_under_version: `v${res.rule_version}`,
+        rule_hash: res.rule_hash,
+        matches: !!res.matches,
+        original_route: res.original_outcome?.route,
+        replayed_route: res.replayed_outcome?.route,
+        reason: res.original_outcome?.citizen_reason,
+      });
+    } catch (e: any) {
+      setSelectedTrace({ entry_id: entry.id, error: e?.message || 'Replay failed' });
+    } finally {
+      setReplaying(null);
+    }
   };
+
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -103,8 +99,8 @@ export const AuditorLedger: React.FC = () => {
       </div>
 
       {chainStatus && (
-        <div className="p-4 bg-emerald-50 text-emerald-800 rounded-xl border border-emerald-200 text-xs font-bold flex items-center space-x-2">
-          <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+        <div className={`p-4 rounded-xl border text-xs font-bold flex items-center space-x-2 ${chainOk ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-rose-50 text-rose-800 border-rose-200'}`}>
+          <CheckCircle2 className={`w-5 h-5 ${chainOk ? 'text-emerald-600' : 'text-rose-600'}`} />
           <span>{chainStatus}</span>
         </div>
       )}
@@ -126,29 +122,35 @@ export const AuditorLedger: React.FC = () => {
           </div>
 
           <div className="divide-y divide-slate-100 text-xs">
-            {auditLogs.map((log) => (
+            {loadError && <div className="p-4 text-rose-700">{loadError}</div>}
+            {!loadError && auditLogs.length === 0 && <div className="p-4 text-slate-400">No audit entries yet for this tenant.</div>}
+            {auditLogs
+              .filter((log) => !searchTerm || `${log.entity_id} ${log.actor_type} ${log.action}`.toLowerCase().includes(searchTerm.toLowerCase()))
+              .map((log) => (
               <div key={log.id} className="p-4 hover:bg-slate-50 transition space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="font-black text-slate-900">
                     Entry #{log.id} · <span className="font-mono text-emerald-700">{log.action}</span>
                   </span>
+                  {log.entity_type === 'decision' && (
                   <button
                     onClick={() => handleReplayDecision(log)}
                     className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded text-[11px] font-bold text-slate-700 flex items-center space-x-1"
                   >
                     <RotateCcw className="w-3 h-3 mr-0.5" />
-                    <span>Replay</span>
+                    <span>{replaying === log.id ? '...' : 'Replay'}</span>
                   </button>
+                  )}
                 </div>
 
                 <div className="text-[11px] text-slate-500 flex space-x-4">
                   <span>Entity: {log.entity_id}</span>
-                  <span>Actor: {log.actor_role}</span>
-                  <span>Rules: {log.rule_version}</span>
+                  <span>Actor: {log.actor_type}{log.acting_as ? ` (as ${log.acting_as})` : ''}</span>
+                  <span>{new Date(log.created_at).toLocaleString()}</span>
                 </div>
 
                 <div className="font-mono text-[10px] text-slate-400 bg-slate-50 p-2 rounded truncate">
-                  SHA-256: {log.current_hash}
+                  SHA-256: {log.hash}
                 </div>
               </div>
             ))}
@@ -163,6 +165,11 @@ export const AuditorLedger: React.FC = () => {
           </h3>
 
           {selectedTrace ? (
+            selectedTrace.error ? (
+              <div className="p-4 bg-rose-50 rounded-xl border border-rose-200 text-xs text-rose-800">
+                Replay for entry #{selectedTrace.entry_id} failed: {selectedTrace.error}
+              </div>
+            ) : (
             <div className="space-y-4 text-xs">
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                 <div className="flex justify-between">
@@ -174,18 +181,27 @@ export const AuditorLedger: React.FC = () => {
                   <span className="font-mono font-bold text-indigo-700">{selectedTrace.replayed_under_version}</span>
                 </div>
                 <div className="flex justify-between">
+                  <span className="font-bold text-slate-600">Route (original → replayed):</span>
+                  <span className="font-mono font-bold">{selectedTrace.original_route} → {selectedTrace.replayed_route}</span>
+                </div>
+                <div className="flex justify-between">
                   <span className="font-bold text-slate-600">Outcome Match:</span>
-                  <span className="font-bold text-emerald-700">DIVERGENCE 0% (Exact Match)</span>
+                  <span className={`font-bold ${selectedTrace.matches ? 'text-emerald-700' : 'text-rose-700'}`}>
+                    {selectedTrace.matches ? 'EXACT MATCH' : 'DIVERGENCE DETECTED'}
+                  </span>
                 </div>
               </div>
 
-              <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200 space-y-1 text-emerald-900">
-                <span className="font-bold block">Deterministic Execution Verified:</span>
+              <div className={`p-4 rounded-xl border space-y-1 ${selectedTrace.matches ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-rose-50 border-rose-200 text-rose-900'}`}>
+                <span className="font-bold block">{selectedTrace.matches ? 'Deterministic Execution Verified:' : 'Replay Mismatch:'}</span>
                 <p className="text-[11px] leading-relaxed">
-                  The decision was re-evaluated using the exact immutable rules and isotonic calibrator stored in version {selectedTrace.replayed_under_version}. Outcome produced is identical.
+                  Stored input snapshot re-evaluated against immutable rule set {selectedTrace.replayed_under_version}
+                  {selectedTrace.rule_hash ? ` (hash ${String(selectedTrace.rule_hash).slice(0, 12)}…)` : ''}.
+                  {selectedTrace.reason ? ` Citizen reason: “${selectedTrace.reason}”` : ''}
                 </p>
               </div>
             </div>
+            )
           ) : (
             <div className="h-48 flex flex-col items-center justify-center text-slate-400 text-xs text-center">
               Click &quot;Replay&quot; on any audit entry to simulate deterministic evaluation under its historical rule set.
