@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import List, Callable
+from typing import List, Callable, Optional
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import select
@@ -50,6 +50,18 @@ async def get_current_user(
         )
 
     return user
+
+async def get_optional_current_user(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+    db: AsyncSession = Depends(get_db)
+) -> Optional[User]:
+    if not credentials:
+        return None
+    try:
+        return await get_current_user(request, credentials, db)
+    except HTTPException:
+        return None
 
 def require_roles(*allowed_roles: str) -> Callable:
     """Dependency factory checking that user holds at least one of the allowed roles."""

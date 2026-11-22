@@ -27,6 +27,7 @@ async def list_audit_logs(
     return result.scalars().all()
 
 @router.get("/verify", response_model=AuditVerifyOut)
+@router.get("/verify-chain", response_model=AuditVerifyOut)
 async def verify_chain(
     current_user: User = Depends(require_roles("auditor")),
     db: AsyncSession = Depends(get_db)

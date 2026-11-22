@@ -12,7 +12,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.database import get_db
-from api.dependencies import get_current_user, require_roles
+from api.dependencies import get_current_user, require_roles, get_optional_current_user
 from api.models import User, ScamScan, ScamVerification
 from api.ai.scam_shield import scam_shield, ScamScanResult, verify_trust_code
 
@@ -42,7 +42,7 @@ class FeedbackRequest(BaseModel):
 @router.post("/scan", response_model=ScamScanResult)
 async def scan_message_endpoint(
     payload: ScanRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Scans an incoming message for phishing, fee scam, or spoofing patterns."""
