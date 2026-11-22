@@ -45,25 +45,34 @@ export const EvalDashboard: React.FC = () => {
     },
     hard_benchmark: {
       sample_size: 120,
+      total_scams: 60,
+      total_genuine: 60,
       precision: 0.90,
-      recall: 0.15,
+      recall_likely_scam_only: 0.15,
+      recall_not_safe: 1.0,
+      share_genuine_to_unsure: 0.9833,
       false_positive_rate: 0.0167,
-      confusion_matrix: { tp: 9, fp: 1, tn: 59, fn: 51 },
+      confusion_matrix: {
+        tp_likely_scam: 9,
+        fn_unsure_scam: 51,
+        fp_false_alarm: 1,
+        tn_cautious_unsure: 59,
+      },
       worst_errors: [
         {
-          type: 'FALSE_ALARM',
+          type: 'FALSE_ALARM (False Positive)',
           text: 'Easypaisa: Money received PKR 5,000 from Provincial Disaster Management Authority. Fee: 0.',
-          reason: 'Heuristic flagged word "Fee" despite zero amount.',
-        },
-        {
-          type: 'SUBTLE_SCAM -> UNSURE',
-          text: 'BISP head office islamabad se Tariq bol raha hun. Apka account verify krna ha abhi jo OTP aya ha batain.',
-          reason: 'Subtle social engineering lacked heavy keyword triggers (safely classified as UNSURE, not VERIFIED).',
+          reason: 'Genuine notification mistaken for scam: word "Fee" matched fee heuristic despite 0 PKR.',
         },
         {
           type: 'SUBTLE_SCAM -> UNSURE',
           text: 'Congratz! Apka naam relief grant lottery me select ho gya hai. 0312-9840192 per foran rabta krein.',
-          reason: 'Lacks official AMN code; routed to UNSURE for officer advisory.',
+          reason: 'Lacks official AMN code; scored 0.403 and routed safely to UNSURE (never falsely Verified).',
+        },
+        {
+          type: 'SUBTLE_SCAM -> UNSURE',
+          text: 'BISP head office islamabad se Tariq bol raha hun. Apka account verify krna ha abhi jo OTP aya ha batain.',
+          reason: 'Conversational impersonation without heavy keywords; scored 0.582, routed to UNSURE for officer advisory.',
         },
       ],
     },
@@ -230,7 +239,7 @@ export const EvalDashboard: React.FC = () => {
 
       {/* Row 2B: Second Held-Out Hard Non-Templated Benchmark (120 Messages) */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
           <div>
             <h3 className="text-base font-black text-slate-900">
               Second Held-Out Benchmark: Hard Non-Templated Set (N = {metrics.hard_benchmark.sample_size})
@@ -239,27 +248,50 @@ export const EvalDashboard: React.FC = () => {
               120 diverse paraphrases, typos, Urdu/Roman-Urdu messages, and subtle scams with zero obvious keywords.
             </p>
           </div>
-          <span className="text-xs font-bold text-amber-800 bg-amber-100 px-3 py-1 rounded-full">
-            Precision 90% · False Alarm 1.67%
-          </span>
+          <div className="flex flex-wrap gap-2 text-xs">
+            <span className="font-bold text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full">
+              Not-Safe Recall 100%
+            </span>
+            <span className="font-bold text-amber-800 bg-amber-100 px-3 py-1 rounded-full">
+              Likely Scam Recall 15.0%
+            </span>
+            <span className="font-bold text-blue-800 bg-blue-100 px-3 py-1 rounded-full">
+              Precision 90%
+            </span>
+            <span className="font-bold text-purple-800 bg-purple-100 px-3 py-1 rounded-full">
+              Cost of Caution: 98.3% Genuine &rarr; Unsure
+            </span>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-center text-xs">
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
-            <span className="text-[10px] uppercase font-bold text-slate-500 block">True Positive</span>
-            <p className="text-xl font-black text-slate-900 font-mono">{metrics.hard_benchmark.confusion_matrix.tp}</p>
-          </div>
-          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl">
-            <span className="text-[10px] uppercase font-bold text-rose-700 block">False Positive (False Alarm)</span>
-            <p className="text-xl font-black text-rose-900 font-mono">{metrics.hard_benchmark.confusion_matrix.fp} (1.67%)</p>
+            <span className="text-[10px] uppercase font-bold text-slate-500 block">Flagged Likely Scam</span>
+            <p className="text-xl font-black text-slate-900 font-mono">
+              {metrics.hard_benchmark.confusion_matrix.tp_likely_scam} / 60
+            </p>
+            <span className="text-[10px] text-slate-500">15.0% immediate block</span>
           </div>
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
             <span className="text-[10px] uppercase font-bold text-amber-800 block">Subtle Scams &rarr; UNSURE</span>
-            <p className="text-xl font-black text-amber-900 font-mono">{metrics.hard_benchmark.confusion_matrix.fn} (Routed to Officer)</p>
+            <p className="text-xl font-black text-amber-900 font-mono">
+              {metrics.hard_benchmark.confusion_matrix.fn_unsure_scam} / 60
+            </p>
+            <span className="text-[10px] text-amber-700">85.0% sent to officer (0% fake verified)</span>
           </div>
-          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
-            <span className="text-[10px] uppercase font-bold text-emerald-800 block">True Negative (Genuine)</span>
-            <p className="text-xl font-black text-emerald-900 font-mono">{metrics.hard_benchmark.confusion_matrix.tn}</p>
+          <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl">
+            <span className="text-[10px] uppercase font-bold text-purple-800 block">Genuine &rarr; UNSURE (Caution)</span>
+            <p className="text-xl font-black text-purple-900 font-mono">
+              {metrics.hard_benchmark.confusion_matrix.tn_cautious_unsure} / 60
+            </p>
+            <span className="text-[10px] text-purple-700">98.3% unverified notices held</span>
+          </div>
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl">
+            <span className="text-[10px] uppercase font-bold text-rose-700 block">False Alarm (False Positive)</span>
+            <p className="text-xl font-black text-rose-900 font-mono">
+              {metrics.hard_benchmark.confusion_matrix.fp_false_alarm} (1.67%)
+            </p>
+            <span className="text-[10px] text-rose-700">&quot;Fee: 0&quot; flagged</span>
           </div>
         </div>
 

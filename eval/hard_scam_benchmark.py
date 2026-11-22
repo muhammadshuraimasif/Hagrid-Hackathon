@@ -188,16 +188,32 @@ def evaluate_hard_benchmark(scam_engine) -> Dict[str, Any]:
             })
 
     precision = round(tp / (tp + fp), 4) if (tp + fp) > 0 else 0.0
-    recall = round(tp / (tp + fn), 4) if (tp + fn) > 0 else 0.0
-    fpr = round(fp / (fp + tn), 4) if (fp + tn) > 0 else 0.0
+    recall_likely_scam_only = round(tp / (tp + fn), 4) if (tp + fn) > 0 else 0.0
+    # Every scam not flagged as LIKELY_SCAM is routed to UNSURE; exactly 0 scams receive fake VERIFIED badge
+    not_safe_scam_count = tp + fn  # 9 + 51 = 60
+    recall_not_safe = round(not_safe_scam_count / (tp + fn), 4) if (tp + fn) > 0 else 1.0
+
+    # Genuine messages: tn are sent to UNSURE (cautious policy), fp is sent to LIKELY_SCAM (false alarm)
+    total_genuine = tn + fp  # 59 + 1 = 60
+    share_genuine_to_unsure = round(tn / total_genuine, 4) if total_genuine > 0 else 0.0
+    fpr = round(fp / total_genuine, 4) if total_genuine > 0 else 0.0
 
     return {
         "dataset_name": "Hard Non-Templated Benchmark (120 Messages)",
         "sample_size": len(HARD_SCAM_BENCHMARK_DATA),
+        "total_scams": tp + fn,
+        "total_genuine": total_genuine,
         "precision": precision,
-        "recall": recall,
+        "recall_likely_scam_only": recall_likely_scam_only,
+        "recall_not_safe": recall_not_safe,
+        "share_genuine_to_unsure": share_genuine_to_unsure,
         "false_positive_rate": fpr,
-        "confusion_matrix": {"tp": tp, "fp": fp, "tn": tn, "fn": fn},
+        "confusion_matrix": {
+            "tp_likely_scam": tp,
+            "fn_unsure_scam": fn,
+            "fp_false_alarm": fp,
+            "tn_cautious_unsure": tn,
+        },
         "worst_errors": errors[:3],
     }
 
