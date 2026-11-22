@@ -22,7 +22,7 @@ SEED_TENANTS = [
         "code": "mao",
         "name": "Municipal Aid Office",
         "income_limit": 35000,
-        "auto_approval_cap": 20000,
+        "auto_approval_cap": 25000,
     },
 ]
 
@@ -61,6 +61,11 @@ def make_rule_set_definition(income_limit: int, auto_approval_cap: int) -> dict:
         "thresholds": {
             "auto_approval_p_min": 0.85,
             "fraud_risk_p_max": 0.20,
+            "variant_match_score": 0.85,
+            "identity_exact": 0.92,
+            "identity_probable": 0.75,
+            "doc_authenticity_min": 0.80,
+            "max_ask_rounds": 2,
         },
         "cost_table": {
             "wrong_approval": 100,

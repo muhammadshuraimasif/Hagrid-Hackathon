@@ -98,6 +98,120 @@ def test_different_person_with_similar_name_is_conflict_or_probable_never_merged
     assert c_id < 0.80  # Cannot qualify for auto-approval
 
 
+def test_false_merge_guard_distinct_persons_never_merged():
+    """Blueprint 9.1 & AGENTS.md false-merge guard:
+    Shared honorific 'Muhammad' does NOT turn different people into Probable.
+    - 'Muhammad Ali' vs 'Muhammad Tariq' -> CONFLICT (distinct distinguishing token)
+    - 'Muhammad Ali' vs 'Mohd. Ali Raza' with different father -> CONFLICT (father mismatch)
+    - Same name with different CNIC -> CONFLICT (CNIC mismatch)
+    All three strictly resolve to CONFLICT/HUMAN, never merged.
+    """
+    resolver = RealIdentityResolver()
+    base_nadra = {
+        "name": "Muhammad Tariq",
+        "father_name": "Tariq Mehmood",
+        "cnic": "42101-1000001-1",
+        "dob": "1985-04-12"
+    }
+
+    # 1. 'Muhammad Ali' vs 'Muhammad Tariq': shared prefix 'Muhammad' but different identity token ('Ali' vs 'Tariq')
+    c_id_1, trace_1 = resolver.score(
+        person_data={
+            "name": "Muhammad Ali",
+            "father_name": "Tariq Mehmood",
+            "cnic": "42101-1000001-1",
+            "dob": "1985-04-12"
+        },
+        nadra_record=base_nadra
+    )
+    assert trace_1["match_type"] == "CONFLICT", f"Expected CONFLICT, got {trace_1['match_type']}"
+    assert trace_1["identity_match_exact"] is False
+    assert c_id_1 <= 0.50
+
+    # 2. 'Muhammad Ali' vs 'Mohd. Ali Raza' with different father's name
+    nadra_raza = {
+        "name": "Mohd. Ali Raza",
+        "father_name": "Syed Raza Shah",
+        "cnic": "42101-2000002-2",
+        "dob": "1990-05-20"
+    }
+    c_id_2, trace_2 = resolver.score(
+        person_data={
+            "name": "Muhammad Ali",
+            "father_name": "Ghulam Muhammad",  # Different father!
+            "cnic": "42101-2000002-2",
+            "dob": "1990-05-20"
+        },
+        nadra_record=nadra_raza
+    )
+    assert trace_2["match_type"] == "CONFLICT", f"Expected CONFLICT, got {trace_2['match_type']}"
+    assert trace_2["father_name_consistent"] is False
+    assert trace_2["identity_match_exact"] is False
+    assert c_id_2 <= 0.40
+
+    # 3. Same name with a different CNIC (not transposition)
+    c_id_3, trace_3 = resolver.score(
+        person_data={
+            "name": "Muhammad Tariq",
+            "father_name": "Tariq Mehmood",
+            "cnic": "35201-8888888-1",  # Completely different CNIC!
+            "dob": "1985-04-12"
+        },
+        nadra_record=base_nadra
+    )
+    assert trace_3["match_type"] == "CONFLICT", f"Expected CONFLICT, got {trace_3['match_type']}"
+    assert trace_3["identity_match_exact"] is False
+    assert c_id_3 <= 0.40
+
+
+def test_identity_resolver_dynamic_thresholds_governed_by_ruleset():
+    """AGENTS.md rule 3: Thresholds are data in versioned immutable rule sets, not hardcoded.
+    Changing variant_match_score in the active rule set directly controls match outcome.
+    """
+    base_nadra = {
+        "name": "Mohd Tariq",
+        "father_name": "Tariq Mehmood",
+        "cnic": "42101-1000001-1",
+        "dob": "1985-04-12"
+    }
+    person = {
+        "name": "Muhammed Tariq",
+        "father_name": "Tariq Mehmood",
+        "cnic": "42101-1000001-1",
+        "dob": "1985-04-12"
+    }
+
+    # Default rule set threshold: variant_match_score = 0.85 -> PROBABLE
+    resolver_default = RealIdentityResolver(thresholds={
+        "variant_match_score": 0.85,
+        "identity_exact": 0.92,
+        "identity_probable": 0.75
+    })
+    _, trace_def = resolver_default.score(person, base_nadra)
+    assert trace_def["name_similarity"] == 0.85
+    assert trace_def["match_type"] == "PROBABLE"
+
+    # Higher threshold rule set: variant_match_score = 0.95 (>= 0.92 exact) -> EXACT
+    resolver_lenient = RealIdentityResolver(thresholds={
+        "variant_match_score": 0.95,
+        "identity_exact": 0.92,
+        "identity_probable": 0.75
+    })
+    _, trace_len = resolver_lenient.score(person, base_nadra)
+    assert trace_len["name_similarity"] == 0.95
+    assert trace_len["match_type"] == "EXACT"
+
+    # Stricter threshold rule set: variant_match_score = 0.70 (< 0.75 probable) -> CONFLICT
+    resolver_strict = RealIdentityResolver(thresholds={
+        "variant_match_score": 0.70,
+        "identity_exact": 0.92,
+        "identity_probable": 0.75
+    })
+    _, trace_strict = resolver_strict.score(person, base_nadra)
+    assert trace_strict["name_similarity"] == 0.70
+    assert trace_strict["match_type"] == "CONFLICT"
+
+
 def test_transposed_cnic_digits_caught():
     """Detects when adjacent digits in the CNIC are transposed."""
     valid_format, is_transposed, msg = validate_and_check_cnic(

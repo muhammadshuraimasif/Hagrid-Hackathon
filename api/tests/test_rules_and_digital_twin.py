@@ -328,3 +328,125 @@ async def test_rules_rbac_and_tenant_isolation(
     # MAO Admin cannot access PRD's rule set (tenant isolation -> 404)
     res_mao = await client.get(f"/api/v1/rules/{prd_rule_id}", headers=adm_mao_h)
     assert res_mao.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_ruleset_version_threshold_update_changes_outcome_for_next_case(
+    client: AsyncClient,
+    admin_prd_token: str,
+    officer_prd_token: str,
+    citizen_prd_token: str
+):
+    """AGENTS.md rule 3: Thresholds are data in versioned immutable rule sets.
+    Publishing a new rule set version with updated threshold dynamically changes
+    the decision route for the next case without server restart.
+    """
+    admin_headers = {"Authorization": f"Bearer {admin_prd_token}"}
+    officer_headers = {"Authorization": f"Bearer {officer_prd_token}"}
+    citizen_headers = {"Authorization": f"Bearer {citizen_prd_token}"}
+
+    # 1. Fetch current active published rule set
+    rules_res = await client.get("/api/v1/rules", headers=admin_headers)
+    assert rules_res.status_code == 200
+    pub_list = [r for r in rules_res.json() if r["status"] == "published"]
+    assert len(pub_list) > 0
+    v1_id = pub_list[0]["id"]
+    v1_def = dict(pub_list[0]["definition"])
+
+    # Verify v1 definition has default variant_match_score = 0.85 (Probable)
+    assert v1_def.get("thresholds", {}).get("variant_match_score") == 0.85
+
+    # 2. Case 1 submitted under current version: name variant 'Muhammed' vs registry 'Mohd'
+    c1_res = await client.post("/api/v1/cases", headers=citizen_headers, json={
+        "name": "Muhammed Tariq",
+        "father_name": "Tariq Mehmood",
+        "dob": "1985-04-12",
+        "cnic": "42101-1000004-1"  # Matches synthetic citizen 'Mohd Tariq'
+    })
+    c1_data = c1_res.json()
+    c1_id = c1_data["id"]
+    p1_id = c1_data["person_id"]
+
+    # Citizen grants consent for officer evaluation
+    await client.post("/api/v1/consent/grant", headers=citizen_headers, json={
+        "person_id": p1_id,
+        "granted_to_type": "officer",
+        "scope": ["identity", "contact", "documents", "payment", "status"],
+        "purpose": "Relief grant evaluation",
+        "expiry_days": 30
+    })
+
+    await client.patch(f"/api/v1/cases/{c1_id}/step", headers=citizen_headers, json={
+        "step_data": {
+            "monthly_income": 20000,
+            "identity_verified": True,
+            "household_size": 4,
+            "cnic": "42101-1000004-1",
+            "claim_amount": 25000,
+            "account_number": "PK36MOCK0000004210110000041",
+            "has_cnic_document": True,
+            "uploaded_documents": ["cnic_front", "salary_slip"]
+        }
+    })
+    await client.post(f"/api/v1/cases/{c1_id}/submit", headers=citizen_headers, json={})
+
+    # Case 1 evaluates under active rule set: score 0.85 in [0.75, 0.92) -> ASK
+    eval1_res = await client.post(f"/api/v1/cases/{c1_id}/evaluate", headers=officer_headers)
+    assert eval1_res.status_code == 200
+    assert eval1_res.json()["route"] == "ASK"
+
+    # 3. Admin creates draft rule set N+1 modifying threshold: variant_match_score = 0.65 (< 0.75 probable min)
+    v2_def = dict(v1_def)
+    v2_def["thresholds"] = dict(v2_def.get("thresholds", {}))
+    v2_def["thresholds"]["variant_match_score"] = 0.65  # Stricter: variant drops to CONFLICT
+
+    create_v2 = await client.post("/api/v1/rules", headers=admin_headers, json={"definition": v2_def})
+    assert create_v2.status_code == 201
+    v2_id = create_v2.json()["id"]
+
+    # Run Digital Twin simulation required before publishing
+    await client.post(f"/api/v1/rules/{v2_id}/twin", headers=admin_headers, json={"sample_size": 30})
+
+    # Publish version N+1
+    pub_v2 = await client.post(f"/api/v1/rules/{v2_id}/publish", headers=admin_headers)
+    assert pub_v2.status_code == 200
+    v2_version = pub_v2.json()["version"]
+
+    # 4. Case 2 submitted with IDENTICAL inputs after rule set update
+    c2_res = await client.post("/api/v1/cases", headers=citizen_headers, json={
+        "name": "Muhammed Tariq",
+        "father_name": "Tariq Mehmood",
+        "dob": "1985-04-12",
+        "cnic": "42101-1000004-1"
+    })
+    c2_data = c2_res.json()
+    c2_id = c2_data["id"]
+    p2_id = c2_data["person_id"]
+
+    await client.post("/api/v1/consent/grant", headers=citizen_headers, json={
+        "person_id": p2_id,
+        "granted_to_type": "officer",
+        "scope": ["identity", "contact", "documents", "payment", "status"],
+        "purpose": "Relief grant evaluation",
+        "expiry_days": 30
+    })
+
+    await client.patch(f"/api/v1/cases/{c2_id}/step", headers=citizen_headers, json={
+        "step_data": {
+            "monthly_income": 20000,
+            "identity_verified": True,
+            "household_size": 4,
+            "cnic": "42101-1000004-1",
+            "claim_amount": 25000,
+            "account_number": "PK36MOCK0000004210110000041",
+            "has_cnic_document": True,
+            "uploaded_documents": ["cnic_front", "salary_slip"]
+        }
+    })
+    await client.post(f"/api/v1/cases/{c2_id}/submit", headers=citizen_headers, json={})
+
+    # Case 2 evaluates under new active version: score 0.65 < 0.75 -> CONFLICT -> HUMAN
+    eval2_res = await client.post(f"/api/v1/cases/{c2_id}/evaluate", headers=officer_headers)
+    assert eval2_res.status_code == 200
+    assert eval2_res.json()["rule_version"] == v2_version
+    assert eval2_res.json()["route"] == "HUMAN"

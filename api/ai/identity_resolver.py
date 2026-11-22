@@ -39,6 +39,8 @@ NAME_CANONICAL_MAP = {
     "HOSSEIN": "HUSAIN",
     "QURESHI": "QURAISHI",
     "SIDDIQUE": "SIDDIQUI",
+    "MHMD": "MUHAMMAD",
+    "TARQ": "TARIQ",
 }
 
 URDU_TO_ROMAN_MAP = {
@@ -158,10 +160,11 @@ class RealIdentityResolver(IdentityScorer):
     - Matches against versioned threshold bounds (default Exact >= 0.92, Probable >= 0.75).
     """
 
-    def __init__(self, thresholds: Optional[Dict[str, float]] = None):
+    def __init__(self, thresholds: Optional[Dict[str, Any]] = None):
         cfg = thresholds or {}
-        self.exact_threshold = float(cfg.get("identity_exact_min", 0.92))
-        self.probable_threshold = float(cfg.get("identity_probable_min", 0.75))
+        self.exact_threshold = float(cfg.get("identity_exact", cfg.get("identity_exact_min", 0.92)))
+        self.probable_threshold = float(cfg.get("identity_probable", cfg.get("identity_probable_min", 0.75)))
+        self.variant_match_score = float(cfg.get("variant_match_score", 0.85))
 
     def score(
         self,
@@ -190,10 +193,25 @@ class RealIdentityResolver(IdentityScorer):
         claimant_norm, c_tokens = normalize_pakistani_name(claimant_raw_name)
         nadra_norm, n_tokens = normalize_pakistani_name(nadra_raw_name)
 
-        # 3. Direct lexical similarity metrics on un-mapped tokens
+        # 3. Direct lexical similarity metrics with multi-token false-merge guard
         jw_sim = JaroWinkler.similarity(c_raw_str, n_raw_str)
-        token_sim = fuzz.token_set_ratio(c_raw_str, n_raw_str) / 100.0
-        raw_similarity = max(jw_sim, token_sim)
+        token_sim = fuzz.token_sort_ratio(c_raw_str, n_raw_str) / 100.0
+
+        # Check for unmatched contradictory tokens between multi-word names (e.g. "Ali" vs "Tariq")
+        if c_raw_tokens and n_raw_tokens:
+            c_to_n = [max(fuzz.ratio(ct, nt) / 100.0 for nt in n_raw_tokens) for ct in c_raw_tokens]
+            n_to_c = [max(fuzz.ratio(nt, ct) / 100.0 for ct in c_raw_tokens) for nt in n_raw_tokens]
+            min_token_match = min(min(c_to_n), min(n_to_c))
+            avg_token_match = (sum(c_to_n) + sum(n_to_c)) / (len(c_to_n) + len(n_to_c))
+        else:
+            min_token_match = 0.0
+            avg_token_match = 0.0
+
+        if len(c_raw_tokens) > 1 and len(n_raw_tokens) > 1 and min_token_match < 0.70:
+            # Contradictory distinguishing tokens detected: prevents false merge from shared honorific prefix like "Muhammad"
+            raw_similarity = min(token_sim, 0.50)
+        else:
+            raw_similarity = max(token_sim, avg_token_match) if (c_raw_tokens and n_raw_tokens) else max(jw_sim, token_sim)
 
         # 4. Phonetic & Canonical equivalence
         c_phonetics = [roman_urdu_phonetic_key(t) for t in c_tokens]
@@ -205,12 +223,11 @@ class RealIdentityResolver(IdentityScorer):
         if c_raw_str == n_raw_str:
             name_similarity = 1.0
         elif raw_similarity >= self.exact_threshold:
-            # High lexical similarity (e.g. Muhammad vs Mohammad, JW=0.925 >= 0.92)
+            # High lexical similarity (e.g. Muhammad vs Mohammad, JW >= exact_threshold)
             name_similarity = raw_similarity
         elif canonical_match or phonetic_match:
-            # Recognized Pakistani variant/abbreviation (e.g. Muhammed vs Mohd, Md vs Muhammad)
-            # Evaluates into the PROBABLE band [0.75, 0.92) per Blueprint 9.1
-            name_similarity = 0.85
+            # Recognized Pakistani variant/abbreviation governed by versioned rule set threshold
+            name_similarity = self.variant_match_score
         else:
             name_similarity = raw_similarity
 
@@ -250,7 +267,12 @@ class RealIdentityResolver(IdentityScorer):
                 match_type = "CONFLICT"
                 c_identity = 0.30
                 notes = "CNIC mismatch between claimant and civil registry"
-        elif name_similarity >= self.exact_threshold and father_match and dob_match:
+        elif not father_match or not dob_match:
+            # Blueprint 9.1: Exact and Probable strictly require consistent father name and DOB
+            match_type = "CONFLICT"
+            c_identity = 0.35
+            notes = "Father name or DOB mismatch with civil registry"
+        elif name_similarity >= self.exact_threshold:
             match_type = "EXACT"
             c_identity = 0.99
             notes = "Exact identity match verified with registry"

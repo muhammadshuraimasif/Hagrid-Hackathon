@@ -33,7 +33,7 @@ from api.decision_engine.policy import (
 from api.decision_engine.scorers import StubIdentityScorer, StubDocumentScorer
 from api.decision_engine.calibration import IsotonicCalibrator
 from api.rules.engine import evaluate_case as evaluate_rule_set
-from api.ai.identity_resolver import RealIdentityResolver
+from api.ai.identity_resolver import RealIdentityResolver, normalize_pakistani_name
 from api.ai.document_reader import RealDocumentReader
 from api.ai.anomaly import evaluate_anomalies
 from api.clients.nadra_client import NadraClient
@@ -104,10 +104,10 @@ async def evaluate_case_full(
     # Read person data via Universal Consent Gate
     try:
         person_dict = await read_person_data(
-            actor_user,
-            case.person_id,
-            ["cnic", "name", "canonical_name", "father_name", "dob"],
-            db
+            db=db,
+            principal=actor_user,
+            person_id=case.person_id,
+            fields=["cnic", "name", "canonical_name", "father_name", "dob"],
         )
     except Exception as e:
         # If consent fails or is withdrawn, fail closed to HUMAN
@@ -165,7 +165,10 @@ async def evaluate_case_full(
 
     # 2. Scorer evaluations (Production AI Components replacing Stubs)
     id_scorer = RealIdentityResolver(thresholds=rule_def.get("thresholds"))
-    c_identity, id_trace = id_scorer.score(person_dict, nadra_record)
+    eval_person_dict = dict(person_dict)
+    if cnic:
+        eval_person_dict["cnic"] = cnic
+    c_identity, id_trace = id_scorer.score(eval_person_dict, nadra_record)
 
     doc_scorer = RealDocumentReader(authenticity_min=float(rule_def.get("thresholds", {}).get("doc_authenticity_min", 0.80)))
     # Add dummy document if none uploaded but case says photo attached
@@ -182,7 +185,9 @@ async def evaluate_case_full(
         claimant_name = (person_dict.get("canonical_name") or person_dict.get("name") or "").strip().upper()
 
         if account_holder_name and claimant_name:
-            if account_holder_name != claimant_name and account_holder_name.split()[0] != claimant_name.split()[0]:
+            norm_acc, _ = normalize_pakistani_name(account_holder_name)
+            norm_cla, _ = normalize_pakistani_name(claimant_name)
+            if norm_acc != norm_cla and account_holder_name.split()[0] != claimant_name.split()[0]:
                 account_title_match = False
     except Exception as exc:
         logger.warning(f"Raast title lookup failed or circuit open: {exc}")

@@ -83,9 +83,8 @@ export const AdminTwin: React.FC = () => {
       <div className="flex border-b border-slate-200 space-x-4 text-xs font-bold">
         <button
           onClick={() => setActiveTab('rules')}
-          className={`py-3 border-b-2 flex items-center space-x-1 ${
-            activeTab === 'rules' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'
-          }`}
+          className={`py-3 border-b-2 flex items-center space-x-1 ${activeTab === 'rules' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'
+            }`}
         >
           <Sliders className="w-4 h-4 mr-1" />
           <span>Rule Definition & Cost Table</span>
@@ -93,9 +92,8 @@ export const AdminTwin: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('twin')}
-          className={`py-3 border-b-2 flex items-center space-x-1 ${
-            activeTab === 'twin' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'
-          }`}
+          className={`py-3 border-b-2 flex items-center space-x-1 ${activeTab === 'twin' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'
+            }`}
         >
           <Play className="w-4 h-4 mr-1" />
           <span>Digital Twin Simulation</span>
@@ -103,9 +101,8 @@ export const AdminTwin: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('chaos')}
-          className={`py-3 border-b-2 flex items-center space-x-1 ${
-            activeTab === 'chaos' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'
-          }`}
+          className={`py-3 border-b-2 flex items-center space-x-1 ${activeTab === 'chaos' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'
+            }`}
         >
           <Zap className="w-4 h-4 mr-1" />
           <span>Mock Service Chaos Toggles</span>
@@ -251,13 +248,12 @@ export const AdminTwin: React.FC = () => {
                 <button
                   disabled={!twinReport || isPublished}
                   onClick={handlePublish}
-                  className={`px-6 py-3 rounded-xl font-black text-xs shadow flex items-center space-x-1 ${
-                    !twinReport
+                  className={`px-6 py-3 rounded-xl font-black text-xs shadow flex items-center space-x-1 ${!twinReport
                       ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
                       : isPublished
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                  }`}
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                    }`}
                 >
                   <CheckCircle className="w-4 h-4 mr-1" />
                   <span>{isPublished ? 'Published to Production' : 'Publish Version 2 (Immutable)'}</span>
