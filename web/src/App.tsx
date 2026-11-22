@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { PrototypeBadge } from './components/common/PrototypeBadge';
 import { CitizenPortal } from './components/citizen/CitizenPortal';
 import { Users, FileText, Gavel, HandHelping } from 'lucide-react';

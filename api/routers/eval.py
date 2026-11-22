@@ -17,6 +17,7 @@ from api.dependencies import require_roles
 from api.models import User, EvalRun
 from api.audit import record_audit_event
 from eval.harness import run_evaluation_harness
+from eval.real_pipeline_eval import run_real_pipeline_evaluation
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +76,14 @@ async def get_latest_eval_run(
         "test_metrics": run.test_metrics,
         "created_at": run.created_at.isoformat() if run.created_at else None,
     }
+
+
+@router.get("/real-pipeline")
+async def get_real_pipeline_metrics(
+    current_user: User = Depends(require_roles("admin", "auditor")),
+):
+    """Returns the real-pipeline 200-case evaluation on actual card image fixtures and AI models."""
+    return run_real_pipeline_evaluation(n_samples=200, seed=42)
 
 
 @router.post("/run")
