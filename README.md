@@ -162,31 +162,54 @@ Evaluated across both templated and hard non-templated test sets:
 
 ## 6. Blueprint Section 12.4 Walkthrough Verification Table
 
-Every step of the core demonstration flow (Blueprint Section 12.4) has been implemented and verified end-to-end:
+Every step of the 8-minute demonstration flow (Blueprint Section 12.4) has been implemented and verified with automated tests:
 
-| Step | Blueprint Scenario | Execution Details | Actual Result | Status | Automated Test Link |
+| # | Do (Exact 12.4 Blueprint Wording) | Judges See (Exact 12.4 Blueprint Wording) | Proves | Status | Automated Test Name & Link |
 | :---: | :--- | :--- | :--- | :---: | :--- |
-| **1** | Clean citizen application | Low-income citizen submits valid CNIC, matching Raast account, and genuine document photo. | Evaluates $p \ge \tau$ ($0.98 \ge 0.96$); routes to `AUTO` on 60-second hold. | **WORKS** | [test_demo_e2e.py](file:///F:/ACM-hackathon/api/tests/test_demo_e2e.py#L25-L65) |
-| **2** | 60-Second Reversible Hold | Disbursed payment sits on a 60-second holding state before release. | Status is `APPROVED_ON_HOLD`; hold expires or can be released/reversed. | **WORKS** | [test_demo_e2e.py](file:///F:/ACM-hackathon/api/tests/test_demo_e2e.py#L67-L95) |
-| **3** | Instant Reversal on Fraud | Officer or admin triggers reversal during hold window before funds settle. | Status changes to `REVERSED`; mock Raast payment cancellation is issued. | **WORKS** | [test_demo_e2e.py](file:///F:/ACM-hackathon/api/tests/test_demo_e2e.py#L97-L125) |
-| **4** | Destination Account Mismatch | CNIC applicant name does not match Raast bank account title (`Tariq` vs `Kamran`). | Rule engine flags account title divergence; routes immediately to `HUMAN`. | **WORKS** | [test_demo_e2e.py](file:///F:/ACM-hackathon/api/tests/test_demo_e2e.py#L127-L155) |
-| **5** | Low Quality / Blurry Document | Applicant uploads out-of-focus or glare-obscured CNIC photo. | OpenCV Laplacian variance fails ($< 75$); routes to `ASK` with retake guidance. | **WORKS** | [test_demo_e2e.py](file:///F:/ACM-hackathon/api/tests/test_demo_e2e.py#L157-L185) |
-| **6** | Forged / Spliced CNIC | Applicant uploads an edited card image with altered name text boxes. | ELA forensics and edge detector flag bounding box anomalies; routes to `HUMAN`. | **WORKS** | [test_demo_e2e.py](file:///F:/ACM-hackathon/api/tests/test_demo_e2e.py#L187-L215) |
-| **7** | Name Transliteration Variant | Urdu transliteration variation (`Muhammad` vs `Mohammad`). | RapidFuzz token match resolves identity with high score ($> 0.90$); routes to `AUTO`.| **WORKS** | [test_demo_e2e.py](file:///F:/ACM-hackathon/api/tests/test_demo_e2e.py#L217-L245) |
-| **8** | Public Rails Outage (503) | Mock NADRA registry is turned off or returns HTTP 503. | Claim transitions to `WAITING_FOR_SERVICE`; fail-closed, never decided while down. | **WORKS** | [test_demo_e2e.py](file:///F:/ACM-hackathon/api/tests/test_demo_e2e.py#L247-L275) |
-| **9** | Helper Grant & Revocation | Citizen delegates filing to community helper, then revokes consent. | Subsequent helper read immediately returns `403 Forbidden` (no DB cache). | **WORKS** | [test_hostile_judge.py](file:///F:/ACM-hackathon/api/tests/test_hostile_judge.py#L46-L98) |
-| **10**| Offline Queue & Resync | Network connection drops mid-claim filing on citizen PWA. | Events cached in Dexie.js outbox; synced idempotently when connection returns. | **WORKS** | [test_demo_e2e.py](file:///F:/ACM-hackathon/api/tests/test_demo_e2e.py#L277-L305) |
-| **11**| Cryptographic Audit Proof | Auditor verifies integrity of database records. | SHA256 hash-chain verified across all events; tamper attempts are flagged. | **WORKS** | [test_demo_e2e.py](file:///F:/ACM-hackathon/api/tests/test_demo_e2e.py#L307-L335) |
+| **1** | State the sentence, the prototype label, the real-vs-simulated table | Scope and honesty | Rules, judgment | **WORKS** | [`test_e2e_step1_scope_and_honesty_prototype_contract`](file:///F:/ACM-hackathon/api/tests/test_demo_e2e.py#L29-L38) |
+| **2** | Akram pastes a fake relief SMS, a genuine one with its code, and an odd one | Scam with red flags; Verified; Unsure &rarr; person | Ch. 08, Ch. 02 | **WORKS** | [`test_e2e_step2_akram_scam_shield_three_message_advisory`](file:///F:/ACM-hackathon/api/tests/test_demo_e2e.py#L40-L75) |
+| **3** | Shazia switches to Zainab; consent by voice; network throttled, then offline, then back | Urdu prompts, saved progress, clean sync, no duplicates | Ch. 07, Helper Mode | **WORKS** | [`test_e2e_step3_shazia_helper_to_zainab_voice_consent_offline_sync`](file:///F:/ACM-hackathon/api/tests/test_demo_e2e.py#L77-L120) |
+| **4** | Zainab's card reads &quot;Muhammed&quot;, registry says &quot;Mohd.&quot; | Read-back by voice, Probable &rarr; one ASK | Ch. 03 | **WORKS** | [`test_e2e_step4_zainab_card_muhammed_registry_mohd_probable_one_ask_then_human`](file:///F:/ACM-hackathon/api/tests/test_demo_e2e.py#L122-L167) |
+| **5** | A clean case; then the same claimant with a scammer's account | AUTO onto a 60-second hold; account-title mismatch &rarr; HUMAN | Ch. 01, new mechanism | **WORKS** | [`test_e2e_step5_clean_case_auto_hold_vs_scammer_account_human`](file:///F:/ACM-hackathon/api/tests/test_demo_e2e.py#L169-L226) |
+| **6** | An edited CNIC | HUMAN with the tampered region boxed and the hand-off packet | Ch. 02, Ch. 08 | **WORKS** | [`test_e2e_step6_edited_cnic_gives_human_with_suspect_boxes`](file:///F:/ACM-hackathon/api/tests/test_demo_e2e.py#L228-L242) |
+| **7** | Show the cost table and &tau; sweep | The numbers behind &tau; | Ch. 01 | **WORKS** | [`test_e2e_step7_cost_table_and_tau_sweep_verification`](file:///F:/ACM-hackathon/api/tests/test_demo_e2e.py#L244-L253) |
+| **8** | Admin adds a required document; Twin preview; publish; new case; open an old decision | New rule live at once; old decision shows its old version | Ch. 04, Digital Twin | **WORKS** | [`test_e2e_step8_admin_adds_doc_twin_publishes_old_decision_replays`](file:///F:/ACM-hackathon/api/tests/test_demo_e2e.py#L255-L352) |
+| **9** | Zainab withdraws Shazia's consent; Shazia retries | 403; audit shows grant, read, withdrawal, denial | Ch. 06 | **WORKS** | [`test_e2e_step9_zainab_withdraws_shazia_consent_audit_sequence`](file:///F:/ACM-hackathon/api/tests/test_demo_e2e.py#L354-L440) |
+| **10** | Auditor opens a trace and verifies the chain | Full trace; chain verified | Ch. 05 | **WORKS** | [`test_e2e_step10_auditor_trace_and_chain_verification`](file:///F:/ACM-hackathon/api/tests/test_demo_e2e.py#L442-L457) |
+| **11** | Admin kills mock-NADRA; run a case | &quot;Cannot verify right now&quot;; case waits | Reliability | **WORKS** | [`test_e2e_step11_admin_kills_nadra_case_waits_in_waiting_for_service`](file:///F:/ACM-hackathon/api/tests/test_demo_e2e.py#L459-L466) |
 
 ---
 
-## 7. Known Limitations & Unverified Features
+## 7. Known Limitations & Honest Disclosures
 
-In keeping with our commitment to transparency:
-1. **PostgreSQL Triggers Unverified on Local Host**:
-   - Because Docker was unavailable on the test machine, automated unit and integration tests were executed exclusively against SQLite (`sqlite+aiosqlite`).
-   - SQLite append-only triggers (`audit_log_block_update`, `audit_log_block_delete`) were thoroughly tested and verified. Equivalent PostgreSQL trigger definitions are provided in Alembic migration `0001_initial_schema.py` but have not been executed on a live PostgreSQL instance in this environment.
-2. **Circular Calibration Risk**:
-   - The synthetic dataset generator creates training, calibration, and test splits from shared underlying feature distributions. Real-world relief rollouts will face novel fraud patterns not present in the calibration set.
-3. **Hardware & Mobile Camera Variance**:
-   - Document quality gates are calibrated on standard laptop/mobile resolutions. Low-end budget Android smartphone cameras under extreme low light may experience higher `ASK` retake rates.
+In keeping with our commitment to transparency and AGENTS.md directives:
+
+1. **Circular Real-Pipeline Card Fixtures**:
+   - The 200 real-pipeline card fixtures were generated by our own script (`make_mock_cnics.py`). Consequently, the reported document forgery recall ($100\%$) and false-alarm rate ($0\%$) are partly circular and will be lower on diverse wild card images with variable mobile cameras, angles, and lighting conditions.
+
+2. **1% Bound Compliance**:
+   - The statistical $\le 1\%$ Clopper-Pearson 95% upper bound on wrong approvals is strictly satisfied on our 3,000 simulated cases (**$0.67\%$** upper bound on the $N=900$ held-out test split, with 0 wrong approvals observed).
+   - However, it is **NOT MET** on the 200 real-pipeline cases, where the upper bound reaches **2.76%** due to the smaller sample size ($N=200$). Meeting the 1% bound under Clopper-Pearson requires $\ge 300$ auto-approved test cases with 0 errors.
+
+3. **Scam Shield Hard-Set Results ($N=120$)**:
+   - On the 120-message non-templated hard benchmark (60 hard scams, 60 hard genuine notices):
+     - **Likely scam only Recall**: **15.0%** (9/60 flagged as LIKELY_SCAM, 51 sent to UNSURE).
+     - **Not-safe (Likely scam + Unsure) Recall**: **100.0%** (60/60 prevented from receiving fake government Verified endorsement; 0 scams falsely verified).
+     - **Cost of Being Cautious (Share of genuine sent to Unsure)**: **98.3%** (59/60 unauthenticated notices sent to Unsure because they lack cryptographic HMAC trust codes).
+     - **Precision on LIKELY_SCAM**: **90.0%** (9 / (9 + 1)).
+     - **False Positive Rate (FPR) on genuine**: **1.67%** (1/60, false alarm on "Fee: 0").
+
+4. **PostgreSQL & Render Deployment are NOT VERIFIED**:
+   - Automated unit, integration, and security tests were executed exclusively against SQLite (`sqlite+aiosqlite`).
+   - Production PostgreSQL configuration, Alembic triggers, and Render hosting files (`render.yaml`, `vercel.json`) are provided in the repo but are **NOT VERIFIED** against live remote cloud instances.
+
+5. **Interactive UI Verification Status**:
+   - Browser automation (Playwright/Puppeteer) was not installed in this local environment; hence direct browser execution is **NOT VERIFIED**.
+   - Manual verification must be performed by running `scripts\start_demo.ps1` and clicking through:
+     1. Citizen wizard screens 1–6 (Urdu audio playback, CNIC upload, Raast IBAN, submit).
+     2. My Data Sovereign Consent Hub (`/consent`): click "Withdraw All Consent" and verify instant 403 block on helper.
+     3. Judge Console Scenario Buttons 1–11 (Akram scam scan, Shazia helper sync, Muhammed vs Mohd name check, clean auto hold, scammer account title mismatch, edited CNIC forensics, tau sweep, admin Twin + publish, consent takeback, auditor chain verify, mock NADRA outage).
+     4. Officer queue (`/backoffice/cases`): inspect context hand-off packet and forensic suspect boxes.
+     5. Admin rule editor & Digital Twin (`/admin`): simulate historical impact, inspect diff report, publish.
+     6. Auditor view (`/audit`): inspect SHA-256 hash chain and run cryptographic verification.
+     7. Evaluation dashboard (`/eval`): review two-tier scam recall, calibration curve, and fairness breakdown.
