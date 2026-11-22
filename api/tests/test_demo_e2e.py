@@ -56,7 +56,7 @@ async def test_e2e_step2_akram_scam_shield_three_message_advisory():
         phone = "03001234567"
         valid_code = generate_trust_code(case_id, phone)
         gen_res = await client.post("/api/v1/scam/scan", json={
-            "message": f"Amaanat Relief: Grant of PKR 12,000 ready. Verification Code: {valid_code}.",
+            "message": f"Amaanat Relief: Grant of PKR 25,000 ready. Verification Code: {valid_code}.",
             "code": valid_code,
             "case_id": case_id,
             "phone": phone
@@ -85,7 +85,7 @@ async def test_e2e_step3_shazia_helper_to_zainab_voice_consent_offline_sync():
         case_res = await client.post("/api/v1/cases", json={
             "cnic": "42101-1000001-1",
             "name": "MUHAMMAD TARIQ",
-            "initial_step": {"amount": 12000}
+            "initial_step": {"amount": 25000}
         }, headers=headers)
         assert case_res.status_code == 201
         case_id = case_res.json()["id"]
@@ -233,12 +233,34 @@ async def test_e2e_step6_edited_cnic_gives_human_with_suspect_boxes():
 
 @pytest.mark.asyncio
 async def test_e2e_step7_cost_table_and_tau_sweep_verification():
-    """Step 7: Show the cost table and tau sweep."""
-    from api.decision_engine.policy import compute_break_even_tau
-    cost_tbl = {"unit_pkr": 250, "wrong_approval": 100, "human_review": 4, "ask_round": 1}
-    tau = compute_break_even_tau(cost_tbl)
-    # Proves: tau is exactly derived from cost table: 1 - (4 / 100) = 0.96
-    assert tau == pytest.approx(0.96, abs=0.01)
+    """Step 7: Show the cost table and tau sweep via real HTTP endpoints."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        adm_login = await client.post("/api/v1/auth/login", json={
+            "email": "admin@prd.test", "password": "Demo@12345", "tenant_id": "prd"
+        })
+        token = adm_login.json()["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # 1. Fetch active published rule set: inspect cost table
+        rules_res = await client.get("/api/v1/rules", headers=headers)
+        assert rules_res.status_code == 200
+        pub_rules = [r for r in rules_res.json() if r["status"] == "published"]
+        assert len(pub_rules) > 0
+        cost_tbl = pub_rules[0]["definition"]["cost_table"]
+        # Break-even tau formula: 1 - (human_review / wrong_approval) = 1 - (4 / 100) = 0.96
+        expected_tau = 1.0 - (cost_tbl["human_review"] / cost_tbl["wrong_approval"])
+        assert expected_tau == pytest.approx(0.96, abs=0.01)
+
+        # 2. Fetch latest eval run: inspect tau sweep, route mix, and Clopper-Pearson bound
+        eval_res = await client.get("/api/v1/eval/latest", headers=headers)
+        assert eval_res.status_code == 200
+        eval_data = eval_res.json()
+        assert eval_data["tau_chosen"] == pytest.approx(0.96, abs=0.01)
+        test_metrics = eval_data["test_metrics"]
+        assert "expected_cost_per_case_sweep" in test_metrics
+        assert len(test_metrics["expected_cost_per_case_sweep"]) > 0
+        assert eval_data["clopper_pearson_upper"] <= 0.01
+        assert test_metrics["bound_le_1pct"] is True
 
 
 @pytest.mark.asyncio
@@ -438,7 +460,146 @@ async def test_e2e_step10_auditor_trace_and_chain_verification():
 @pytest.mark.asyncio
 async def test_e2e_step11_admin_kills_nadra_case_waits_in_waiting_for_service():
     """Step 11: Admin kills mock-NADRA; run a case -> 'Cannot verify right now'; case waits."""
-    from api.clients.nadra_client import NadraClient
-    client = NadraClient()
-    assert client.circuit_breaker.name == "nadra"
-    assert "WAITING_FOR_SERVICE" == "WAITING_FOR_SERVICE"
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        admin_login = await client.post("/api/v1/auth/login", json={
+            "email": "admin@prd.test", "password": "Demo@12345", "tenant_id": "prd"
+        })
+        adm_token = admin_login.json()["access_token"]
+        adm_headers = {"Authorization": f"Bearer {adm_token}"}
+
+        officer_login = await client.post("/api/v1/auth/login", json={
+            "email": "officer@prd.test", "password": "Demo@12345", "tenant_id": "prd"
+        })
+        off_token = officer_login.json()["access_token"]
+        off_headers = {"Authorization": f"Bearer {off_token}"}
+
+        cit_login = await client.post("/api/v1/auth/login", json={
+            "email": "citizen@prd.test", "password": "Demo@12345", "tenant_id": "prd"
+        })
+        cit_token = cit_login.json()["access_token"]
+        cit_headers = {"Authorization": f"Bearer {cit_token}"}
+
+        try:
+            # 1. Admin kills mock-NADRA via chaos endpoint
+            chaos_res = await client.post(
+                "/api/v1/admin/chaos",
+                headers=adm_headers,
+                json={"service": "nadra", "error_500": True}
+            )
+            assert chaos_res.status_code == 200
+
+            # 2. Citizen creates and submits a case
+            case_res = await client.post(
+                "/api/v1/cases",
+                headers=cit_headers,
+                json={"name": "Outage Test Applicant", "cnic": "42101-1000001-1"}
+            )
+            assert case_res.status_code == 201
+            case_id = case_res.json()["id"]
+
+            await client.patch(
+                f"/api/v1/cases/{case_id}/step",
+                headers=cit_headers,
+                json={
+                    "step_data": {
+                        "monthly_income": 20000,
+                        "cnic": "42101-1000001-1",
+                        "claim_amount": 25000,
+                        "account_number": "PK99MEZN0001234567890",
+                        "uploaded_documents": ["cnic_front"],
+                    }
+                }
+            )
+            sub_res = await client.post(f"/api/v1/cases/{case_id}/submit", headers=cit_headers, json={})
+            assert sub_res.status_code == 200
+
+            # 3. Officer decides case -> NADRA is down, must transition to WAITING_FOR_SERVICE
+            decide_res = await client.post(f"/api/v1/cases/{case_id}/decide", headers=off_headers)
+            assert decide_res.status_code == 200
+            dec_data = decide_res.json()
+            assert dec_data["case_status"] == "WAITING_FOR_SERVICE"
+            assert "Cannot verify right now" in dec_data["citizen_reason"]["en"]
+
+            # 4. Confirm case record status in database via API
+            get_res = await client.get(f"/api/v1/cases/{case_id}", headers=cit_headers)
+            assert get_res.status_code == 200
+            assert get_res.json()["status"] == "WAITING_FOR_SERVICE"
+
+        finally:
+            # 5. Restore NADRA and reset chaos
+            reset_res = await client.post(
+                "/api/v1/admin/chaos",
+                headers=adm_headers,
+                json={"reset": True}
+            )
+            assert reset_res.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_e2e_multi_ask_blurry_photo_twice_then_human():
+    """Proves max ASK rounds is 2 for missing/blurry evidence (retake twice, then HUMAN on third),
+    whereas name variation (identity-Probable) allows exactly 1 ASK round."""
+    from api.decision_engine.policy import PolicyInput, PolicyHardGuards, evaluate_decision_policy
+    from api.decision_engine.calibration import IsotonicCalibrator
+
+    calibrator = IsotonicCalibrator()
+    cost_tbl = {"unit_pkr": 250, "wrong_approval": 100, "human_review": 4, "ask_round": 1}
+    thresholds = {"max_ask_rounds": 2}
+    rule_set_def = {"cost_table": cost_tbl, "thresholds": thresholds}
+
+    # Case A: Missing/blurry document (retake_photo), identity_match_exact=True
+    # Round 0: ask_rounds_so_far = 0 -> ASK
+    p_in_0 = PolicyInput(
+        c_identity=1.0, c_document=0.50, c_rules=1.0, c_account=1.0, r_fraud=0.0,
+        hard_guards=PolicyHardGuards(
+            amount_within_cap=True, identity_match_exact=True, no_duplicate_or_anomaly=True,
+            all_required_fields_confirmed=True, no_rule_returned_unknown=True,
+            document_authenticity_above_limit=False,  # Needs retake
+            account_title_matches_claimant=True, account_not_newly_changed=True,
+            rule_set_published=True
+        ),
+        ask_rounds_so_far=0,
+        candidate_evidence=[{"id": "retake_photo", "q_e": 0.95}],
+        rule_set_def=rule_set_def,
+        calibrator=calibrator,
+        seed=42
+    )
+    out_0 = evaluate_decision_policy(p_in_0)
+    assert out_0.route == "ASK"
+    assert out_0.ask_target == "retake_photo"
+
+    # Round 1: Citizen re-uploads still blurry -> ask_rounds_so_far = 1 -> ASK (second chance)
+    p_in_1 = p_in_0.model_copy(update={"ask_rounds_so_far": 1})
+    out_1 = evaluate_decision_policy(p_in_1)
+    assert out_1.route == "ASK"
+    assert out_1.ask_target == "retake_photo"
+
+    # Round 2: Citizen uploads still blurry -> ask_rounds_so_far = 2 -> HUMAN (max 2 reached!)
+    p_in_2 = p_in_0.model_copy(update={"ask_rounds_so_far": 2})
+    out_2 = evaluate_decision_policy(p_in_2)
+    assert out_2.route == "HUMAN"
+
+    # Case B: Identity Probable (identity_match_exact=False) allows only 1 ASK round per Step 4
+    p_id_0 = PolicyInput(
+        c_identity=0.85, c_document=1.0, c_rules=1.0, c_account=1.0, r_fraud=0.0,
+        hard_guards=PolicyHardGuards(
+            amount_within_cap=True,
+            identity_match_exact=False,  # Probable variant (Muhammed vs Mohd)
+            no_duplicate_or_anomaly=True, all_required_fields_confirmed=True,
+            no_rule_returned_unknown=True, document_authenticity_above_limit=True,
+            account_title_matches_claimant=True, account_not_newly_changed=True,
+            rule_set_published=True
+        ),
+        ask_rounds_so_far=0,
+        candidate_evidence=[{"id": "clarify_name_variant", "q_e": 0.95}],
+        rule_set_def=rule_set_def,
+        calibrator=calibrator,
+        seed=42
+    )
+    out_id_0 = evaluate_decision_policy(p_id_0)
+    assert out_id_0.route == "ASK"
+
+    # Round 1: ask_rounds_so_far = 1 -> Escalates immediately to HUMAN (1-ASK only)
+    p_id_1 = p_id_0.model_copy(update={"ask_rounds_so_far": 1})
+    out_id_1 = evaluate_decision_policy(p_id_1)
+    assert out_id_1.route == "HUMAN"

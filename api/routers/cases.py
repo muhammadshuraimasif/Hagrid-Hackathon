@@ -354,6 +354,17 @@ async def decide_case_endpoint(
     else:
         target_status = "IN_REVIEW"
 
+    # Check external rails health (e.g. NADRA identity registry chaos injection or failure)
+    from mocks.chaos import chaos_controller
+    nadra_chaos = chaos_controller.get_state().get("nadra", {})
+    if nadra_chaos.get("error_500") or nadra_chaos.get("timeout"):
+        target_status = "WAITING_FOR_SERVICE"
+        decision.route = "HUMAN"
+        decision.citizen_reason = {
+            "en": "Cannot verify right now. External service is temporarily unavailable; case is waiting for service recovery.",
+            "ur": "اس وقت تصدیق ممکن نہیں۔ بیرونی سروس بحال ہونے تک درخواست انتظار میں ہے۔"
+        }
+
     # Transition case through CHECKING if currently SUBMITTED
     if case.status == "SUBMITTED":
         await transition_case_status(

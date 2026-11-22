@@ -213,7 +213,7 @@ async def test_raast_account_title_lookup_returns_holder_name(mock_transport):
 async def test_raast_idempotent_replay_pays_once(mock_transport):
     raast = RaastClient(base_url="http://mock-service", transport=mock_transport)
     case_id = f"case-{uuid.uuid4().hex[:8]}"
-    amount = 12000.0
+    amount = 25000.0
     idempotency_key = f"idemp-{uuid.uuid4().hex}"
 
     token = mint_decision_token(case_id=case_id, amount=amount, tenant_id="prd")

@@ -216,7 +216,7 @@ def test_hmac_decision_token_mint_and_verify():
 
     token = mint_decision_token(
         case_id=case_id,
-        amount=12000.0,
+        amount=25000.0,
         tenant_id=tenant_id,
         route=route,
         p=p,
@@ -226,7 +226,7 @@ def test_hmac_decision_token_mint_and_verify():
     assert "." in token
 
     # Valid token verifies True
-    payload = verify_decision_token(token, expected_case_id=case_id, expected_amount=12000.0, expected_route=route, secret=secret)
+    payload = verify_decision_token(token, expected_case_id=case_id, expected_amount=25000.0, expected_route=route, secret=secret)
     assert payload["case_id"] == case_id
     assert payload["route"] == "AUTO"
 
@@ -259,7 +259,7 @@ async def test_full_case_evaluation_auto_flow(client: AsyncClient, helper_prd_to
             "father_name": "Father Name",
             "cnic": "42101-1111111-1",
             "initial_step": {
-                "claim_amount": 12000.0,
+                "claim_amount": 25000.0,
                 "monthly_income": 18000,
                 "family_size": 6,
                 "account_number": "PK99HABB0000000001",
@@ -322,7 +322,7 @@ async def test_explanation_bilingual_and_trace_access_control(
             "father_name": "Father Name",
             "cnic": "42101-2222222-2",
             "initial_step": {
-                "claim_amount": 12000.0,
+                "claim_amount": 25000.0,
                 "monthly_income": 20000,
                 "family_size": 5,
                 "account_number": "PK99HABB0000000002",

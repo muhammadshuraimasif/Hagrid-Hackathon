@@ -180,7 +180,7 @@ async def test_message_with_valid_code_is_verified():
     phone = "03001234567"
     valid_code = generate_trust_code(case_id, phone)
 
-    sms_text = f"Amaanat Relief: Your grant PKR 12,000 is ready. Official Code: {valid_code}. Do not pay any fee."
+    sms_text = f"Amaanat Relief: Your grant PKR 25,000 is ready. Official Code: {valid_code}. Do not pay any fee."
     result = await scam_shield.scan_message(sms_text, case_id=case_id, recipient_phone=phone)
     assert result.verdict == "VERIFIED"
     assert result.confidence >= 0.95

@@ -247,6 +247,9 @@ export const EvalDashboard: React.FC = () => {
             <p className="text-xs text-slate-500">
               120 diverse paraphrases, typos, Urdu/Roman-Urdu messages, and subtle scams with zero obvious keywords.
             </p>
+            <p className="text-xs text-amber-700 font-medium mt-1">
+              Without a valid verification code, a relief message can never be Verified; the classifier alone is weak on non-templated messages (see hard-set results).
+            </p>
           </div>
           <div className="flex flex-wrap gap-2 text-xs">
             <span className="font-bold text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full">
@@ -270,7 +273,7 @@ export const EvalDashboard: React.FC = () => {
             <p className="text-xl font-black text-slate-900 font-mono">
               {metrics.hard_benchmark.confusion_matrix.tp_likely_scam} / 60
             </p>
-            <span className="text-[10px] text-slate-500">15.0% immediate block</span>
+            <span className="text-[10px] text-slate-500">15.0% high-risk warning</span>
           </div>
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
             <span className="text-[10px] uppercase font-bold text-amber-800 block">Subtle Scams &rarr; UNSURE</span>

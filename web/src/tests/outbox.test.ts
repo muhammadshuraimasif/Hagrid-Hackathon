@@ -38,7 +38,7 @@ describe('Dexie Offline Outbox & Sync Queue', () => {
     });
 
     // Queue two offline events
-    await queueOutboxEvent('uuid-event-1', 'case-01', 'CASE_SUBMITTED', { amount: 12000 });
+    await queueOutboxEvent('uuid-event-1', 'case-01', 'CASE_SUBMITTED', { amount: 25000 });
     await queueOutboxEvent('uuid-event-2', 'case-01', 'DOCUMENTS_ATTACHED', { count: 2 });
 
     const unsyncedBefore = await db.events.where('synced').equals(0).count();

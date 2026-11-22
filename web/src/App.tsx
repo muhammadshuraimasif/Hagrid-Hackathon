@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { PrototypeBadge } from './components/common/PrototypeBadge';
 import { CitizenPortal } from './components/citizen/CitizenPortal';
+import { BackOfficeSuite } from './components/backoffice/BackOfficeSuite';
+import { JudgeConsole } from './components/judge/JudgeConsole';
+import { HelperMode } from './components/helper/HelperMode';
 import { Users, FileText, Gavel, HandHelping } from 'lucide-react';
 
 export type AppView = 'citizen' | 'backoffice' | 'judge' | 'helper';
@@ -63,24 +66,9 @@ export default function App() {
       {/* 3. Main Dynamic Content */}
       <div className="flex-1">
         {view === 'citizen' && <CitizenPortal />}
-        {view === 'backoffice' && (
-          <div className="p-8 max-w-4xl mx-auto text-center">
-            <h2 className="text-2xl font-bold text-slate-800 mb-2">Back-Office Suite Loading...</h2>
-            <p className="text-slate-600 text-sm">Officer Queue, Admin Twin, Auditor Ledger, & Evaluation Dashboard.</p>
-          </div>
-        )}
-        {view === 'judge' && (
-          <div className="p-8 max-w-4xl mx-auto text-center">
-            <h2 className="text-2xl font-bold text-slate-800 mb-2">Judge Console Loading...</h2>
-            <p className="text-slate-600 text-sm">Interactive Phone View + Back-Office Control + Demo Scenario Seeding.</p>
-          </div>
-        )}
-        {view === 'helper' && (
-          <div className="p-8 max-w-4xl mx-auto text-center">
-            <h2 className="text-2xl font-bold text-slate-800 mb-2">Helper Mode Loading...</h2>
-            <p className="text-slate-600 text-sm">Family picture cards & PIN-delegated assistance.</p>
-          </div>
-        )}
+        {view === 'backoffice' && <BackOfficeSuite />}
+        {view === 'judge' && <JudgeConsole />}
+        {view === 'helper' && <HelperMode />}
       </div>
 
       {/* Footer */}

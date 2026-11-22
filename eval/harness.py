@@ -79,7 +79,7 @@ def compute_case_scores(case: Dict[str, Any]) -> Dict[str, Any]:
 
     # Hard guards
     hard_guards = PolicyHardGuards(
-        amount_within_cap=(case.get("claim_amount", 12000.0) <= 25000.0),
+        amount_within_cap=(case.get("claim_amount", 25000.0) <= 25000.0),
         identity_match_exact=bool(case.get("identity_match_exact", False)),
         no_duplicate_or_anomaly=not has_anomaly,
         all_required_fields_confirmed=True,

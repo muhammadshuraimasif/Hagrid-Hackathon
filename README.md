@@ -150,6 +150,7 @@ All metrics below originate strictly from executed runs of our evaluation harnes
 - **Document False Alarm Rate**: **0.0%** ($0/150$ genuine cards flagged).
 
 ### C. Scam Shield Multi-Modal Evaluation
+Without a valid verification code, a relief message can never be Verified; the classifier alone is weak on non-templated messages (see hard-set results).
 Evaluated across both templated and hard non-templated test sets:
 - **Templated Test Set ($N = 240$)**:
   - Precision: `1.000` (100%) | Recall: `1.000` (100%) | False Alarm Rate: `0.0%`.
@@ -192,6 +193,7 @@ In keeping with our commitment to transparency and AGENTS.md directives:
    - However, it is **NOT MET** on the 200 real-pipeline cases, where the upper bound reaches **2.76%** due to the smaller sample size ($N=200$). Meeting the 1% bound under Clopper-Pearson requires $\ge 300$ auto-approved test cases with 0 errors.
 
 3. **Scam Shield Hard-Set Results ($N=120$)**:
+   - Without a valid verification code, a relief message can never be Verified; the classifier alone is weak on non-templated messages (see hard-set results).
    - On the 120-message non-templated hard benchmark (60 hard scams, 60 hard genuine notices):
      - **Likely scam only Recall**: **15.0%** (9/60 flagged as LIKELY_SCAM, 51 sent to UNSURE).
      - **Not-safe (Likely scam + Unsure) Recall**: **100.0%** (60/60 prevented from receiving fake government Verified endorsement; 0 scams falsely verified).

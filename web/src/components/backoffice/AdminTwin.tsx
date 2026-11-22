@@ -13,7 +13,7 @@ export const AdminTwin: React.FC = () => {
   // Rule Definition State
   const [maxIncome, setMaxIncome] = useState<number>(25000);
   const [minFamilySize, setMinFamilySize] = useState<number>(4);
-  const [grantAmount, setGrantAmount] = useState<number>(12000);
+  const [grantAmount, setGrantAmount] = useState<number>(25000);
   const [wrongApprovalCost, setWrongApprovalCost] = useState<number>(100);
   const [humanReviewCost, setHumanReviewCost] = useState<number>(4);
 

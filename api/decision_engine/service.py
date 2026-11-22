@@ -136,7 +136,7 @@ async def evaluate_case_full(
 
     # Evaluate Rules Logic
     rule_def = rule_set.definition
-    claim_amount = float(step_data.get("claim_amount", 12000.0))
+    claim_amount = float(step_data.get("claim_amount", 25000.0))
     tenant_cap = float(rule_def.get("parameters", {}).get("max_grant_amount", 25000.0))
 
     rule_eval = evaluate_rule_set(rule_def, step_data)
@@ -290,7 +290,14 @@ async def evaluate_case_full(
     hold_expires_at = None
 
     # Handle AUTO execution: mint token, authorise reversible payment
-    if policy_output.route == "AUTO":
+    if not services_healthy:
+        target_status = "WAITING_FOR_SERVICE"
+        policy_output.route = "HUMAN"
+        policy_output.citizen_reason = {
+            "en": "Cannot verify right now. External service is temporarily unavailable; case is waiting for service recovery.",
+            "ur": "اس وقت تصدیق ممکن نہیں۔ بیرونی سروس بحال ہونے تک درخواست انتظار میں ہے۔"
+        }
+    elif policy_output.route == "AUTO":
         decision_token = mint_decision_token(
             case_id=case.id,
             amount=claim_amount,
@@ -466,7 +473,7 @@ async def officer_review_decision(
     if action == "approve":
         # Disburse payment if not yet disbursed
         account_number = (case.step_data or {}).get("account_number") or "PK99MEZN0001234567890"
-        claim_amount = float((case.step_data or {}).get("claim_amount", 12000.0))
+        claim_amount = float((case.step_data or {}).get("claim_amount", 25000.0))
         raast_client = get_raast_client()
         token = mint_decision_token(
             case_id=case.id,
@@ -538,7 +545,7 @@ async def get_review_queue_sorted(
         dec = dec_res.scalars().first()
         p = dec.p if dec else 0.5
         step_data = c.step_data or {}
-        amount = float(step_data.get("claim_amount", 12000.0))
+        amount = float(step_data.get("claim_amount", 25000.0))
         vulnerability_weight = float(step_data.get("vulnerability_weight", 1.2 if step_data.get("vulnerable") else 1.0))
 
         # Age factor: older pending cases gain higher priority
