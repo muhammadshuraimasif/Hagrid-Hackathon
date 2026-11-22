@@ -23,7 +23,7 @@ class RaastClient:
         failure_threshold: int = 3,
         recovery_timeout: float = 2.0
     ):
-        url = base_url or settings.MOCK_SERVICES_URL
+        url = base_url or settings.RAAST_SERVICE_URL or settings.effective_mock_services_url
         self.circuit_breaker = CircuitBreaker(
             name="raast",
             failure_threshold=failure_threshold,

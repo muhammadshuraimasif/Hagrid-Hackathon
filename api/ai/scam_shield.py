@@ -51,7 +51,7 @@ class ScamScanResult(BaseModel):
 
 def generate_trust_code(case_id: str, recipient: str, secret: Optional[str] = None) -> str:
     """Mints an authentic HMAC-SHA256 trust anchor verification code for Amaanat SMS/WhatsApp."""
-    sec = (secret or settings.DECISION_TOKEN_SECRET).encode("utf-8")
+    sec = (secret or settings.effective_scam_hmac_secret).encode("utf-8")
     payload = f"{case_id}:{recipient}:TRUST_ANCHOR"
     mac = hmac.new(sec, payload.encode("utf-8"), hashlib.sha256).hexdigest()
     return f"AMN-{mac[:8].upper()}"

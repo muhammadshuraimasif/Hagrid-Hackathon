@@ -1,34 +1,12 @@
 {
-  "buildCommand": "cd web && npm install && npm run build",
-  "outputDirectory": "web/dist",
-  "framework": "vite",
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "https://amaanat-api.onrender.com/api/$1"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "builds": [
+    { "src": "index.py", "use": "@vercel/python", "config": { "maxLambdaSize": "500mb", "excludeFiles": "{web/**,docs/**,uploads/**,dist/**,**/__pycache__/**,**/*.db,api/tests/**}" } },
+    { "src": "package.json", "use": "@vercel/static-build", "config": { "distDir": "dist" } }
   ],
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "X-Prototype",
-          "value": "Project Amaanat - Hagrid's Hackathon Prototype"
-        },
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        },
-        {
-          "key": "X-Frame-Options",
-          "value": "DENY"
-        }
-      ]
-    }
+  "routes": [
+    { "src": "/(api/.*|docs|docs/.*|redoc|openapi\\.json|health|ready)", "dest": "/index.py" },
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html", "headers": { "X-Prototype": "Project Amaanat - Hagrid's Hackathon Prototype" } }
   ]
 }

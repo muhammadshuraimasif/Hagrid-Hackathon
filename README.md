@@ -215,3 +215,21 @@ In keeping with our commitment to transparency and AGENTS.md directives:
      5. Admin rule editor & Digital Twin (`/admin`): simulate historical impact, inspect diff report, publish.
      6. Auditor view (`/audit`): inspect SHA-256 hash chain and run cryptographic verification.
      7. Evaluation dashboard (`/eval`): review two-tier scam recall, calibration curve, and fairness breakdown.
+
+---
+
+## 9. Deploying to Vercel (single project: React PWA + FastAPI)
+
+The repo deploys as **one Vercel project** (`vercel.json` → `builds`):
+- `index.py` → FastAPI as a Python function (routes `/api/*`, `/docs`, `/redoc`, `/openapi.json`, `/health`, `/ready`).
+- `package.json` (root) → builds `web/` and serves the PWA from the same origin (no CORS / API URL needed).
+- Mock NADRA / Raast / Telco rails run **in-process** (`MOCKS_INPROCESS=true`), so no second server.
+
+Required env vars: `ENVIRONMENT=production`, `JWT_SECRET`, `DECISION_TOKEN_SECRET`, `SCAM_HMAC_SECRET`, `MOCKS_INPROCESS=true`.
+Optional: `DATABASE_URL=postgresql://...` (Supabase session pooler, port 5432). Without it the API uses SQLite in `/tmp`,
+auto-seeded on each cold start — fine for a live demo, but data resets when the instance is recycled.
+
+```bash
+npx vercel link     # pick team "Replica LAB" → project "amaanat-hagrid"
+npx vercel --prod
+```

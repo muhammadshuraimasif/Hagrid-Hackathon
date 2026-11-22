@@ -8,22 +8,35 @@ logger = logging.getLogger(__name__)
 
 # Normalize DATABASE_URL for async drivers if necessary
 db_url = settings.DATABASE_URL
-if db_url.startswith("postgresql://"):
+if db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
+elif db_url.startswith("postgresql://"):
     db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 elif db_url.startswith("sqlite://") and not db_url.startswith("sqlite+aiosqlite://"):
     db_url = db_url.replace("sqlite://", "sqlite+aiosqlite://", 1)
 
 is_sqlite = "sqlite" in db_url
+if not is_sqlite and "prepared_statement_cache_size" not in db_url:
+    db_url += ("&" if "?" in db_url else "?") + "prepared_statement_cache_size=0"
 
 connect_args = {}
+engine_kwargs = {}
 if is_sqlite:
     connect_args["check_same_thread"] = False
+else:
+    # Supabase/pgBouncer poolers do not support asyncpg's prepared-statement cache.
+    connect_args["statement_cache_size"] = 0
+    engine_kwargs["pool_pre_ping"] = True
+    engine_kwargs["pool_size"] = 3
+    engine_kwargs["max_overflow"] = 2
+    engine_kwargs["pool_recycle"] = 300
 
 engine = create_async_engine(
     db_url,
     echo=False,
     connect_args=connect_args,
     future=True,
+    **engine_kwargs,
 )
 
 # Async session factory

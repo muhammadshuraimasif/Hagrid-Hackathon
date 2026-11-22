@@ -25,6 +25,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,mp3}'],
+        // Never let the SPA service worker hijack backend pages (Swagger docs, API, health checks)
+        navigateFallbackDenylist: [/^\/api\//, /^\/docs/, /^\/redoc/, /^\/openapi\.json/, /^\/health/, /^\/ready/],
       },
     }),
   ],

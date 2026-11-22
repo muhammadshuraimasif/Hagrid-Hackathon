@@ -31,8 +31,17 @@ export class ApiError extends Error {
   }
 }
 
+const envApiUrl = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_API_URL : undefined;
+// In production builds the API is served from the same origin (Vercel routes /api/* to FastAPI).
+const defaultApiUrl = import.meta.env && import.meta.env.PROD ? '' : 'http://127.0.0.1:8000';
+const rawBaseUrl = (envApiUrl ?? defaultApiUrl).replace(/\/+$/, '');
+const API_BASE_URL = rawBaseUrl.endsWith('/api/v1') ? rawBaseUrl : `${rawBaseUrl}/api/v1`;
+
+export const getApiBaseUrl = (): string => API_BASE_URL;
+export const getApiRootUrl = (): string => rawBaseUrl;
+
 class ApiClient {
-  private baseUrl: string = '/api/v1';
+  private baseUrl: string = API_BASE_URL;
 
   getAccessToken(): string | null {
     return localStorage.getItem('access_token');

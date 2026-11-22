@@ -1,0 +1,12 @@
+venv
+.venv
+web/node_modules
+web/dist
+dist
+.git
+uploads
+*.db
+*.db-*
+**/__pycache__
+.pytest_cache
+docs/*.pdf

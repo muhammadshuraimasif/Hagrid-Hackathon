@@ -13,7 +13,8 @@ from api.audit import record_audit_event
 
 router = APIRouter(prefix="/api/v1/documents", tags=["Documents"])
 
-UPLOAD_DIR = "./uploads"
+from api.config import settings
+UPLOAD_DIR = settings.UPLOAD_DIR
 ALLOWED_MIMES = {
     "image/jpeg": b"\xff\xd8\xff",
     "image/png": b"\x89PNG\r\n\x1a\n",

@@ -13,7 +13,7 @@ class SmsClient:
         base_url: Optional[str] = None,
         transport: Optional[httpx.AsyncBaseTransport] = None
     ):
-        url = base_url or settings.MOCK_SERVICES_URL
+        url = base_url or settings.SMS_SERVICE_URL or settings.effective_mock_services_url
         self.circuit_breaker = CircuitBreaker(name="sms", failure_threshold=3, recovery_timeout=2.0)
         self.http_client = ResilientHttpClient(
             base_url=url,

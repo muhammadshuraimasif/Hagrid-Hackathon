@@ -47,21 +47,25 @@ _default_calibrator = IsotonicCalibrator()
 
 def get_nadra_client() -> NadraClient:
     transport = None
-    try:
-        from mocks.main import app as mocks_app
-        transport = ASGITransport(app=mocks_app)
-    except Exception:
-        pass
-    return NadraClient(base_url=settings.MOCK_SERVICES_URL, transport=transport)
+    base_url = settings.NADRA_SERVICE_URL or settings.effective_mock_services_url
+    if settings.MOCKS_INPROCESS or (not settings.MOCKS_BASE_URL and settings.ENVIRONMENT.lower() not in ("production", "prod")):
+        try:
+            from mocks.main import app as mocks_app
+            transport = ASGITransport(app=mocks_app)
+        except Exception:
+            pass
+    return NadraClient(base_url=base_url, transport=transport)
 
 def get_raast_client() -> RaastClient:
     transport = None
-    try:
-        from mocks.main import app as mocks_app
-        transport = ASGITransport(app=mocks_app)
-    except Exception:
-        pass
-    return RaastClient(base_url=settings.MOCK_SERVICES_URL, transport=transport)
+    base_url = settings.RAAST_SERVICE_URL or settings.effective_mock_services_url
+    if settings.MOCKS_INPROCESS or (not settings.MOCKS_BASE_URL and settings.ENVIRONMENT.lower() not in ("production", "prod")):
+        try:
+            from mocks.main import app as mocks_app
+            transport = ASGITransport(app=mocks_app)
+        except Exception:
+            pass
+    return RaastClient(base_url=base_url, transport=transport)
 
 
 async def evaluate_case_full(
@@ -313,7 +317,7 @@ async def evaluate_case_full(
             input_hash=input_hash
         )
 
-        hold_seconds = 60
+        hold_seconds = settings.DEMO_HOLD_SECONDS
         idempotency_key = f"PAY-HOLD-{case.id}-{int(datetime.now(timezone.utc).timestamp())}"
         try:
             pay_res = await raast_client.authorise_hold(

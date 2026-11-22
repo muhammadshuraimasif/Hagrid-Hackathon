@@ -1,0 +1,10 @@
+{
+  "name": "amaanat-root",
+  "private": true,
+  "scripts": {
+    "vercel-build": "cd web && npm install && npm run build && rm -rf ../dist && cp -r dist ../dist"
+  },
+  "engines": {
+    "node": "22.x"
+  }
+}

@@ -17,10 +17,15 @@ logger = logging.getLogger("amaanat-api")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Fail fast if production secrets are missing or insecure
+    settings.validate_production_secrets()
     # Initialize DB tables, WAL mode, and audit triggers
     await init_db()
-    # Seed default tenants and users
-    await seed_data()
+    # Seed default tenants and users (idempotent; a concurrent cold start may race, which is harmless)
+    try:
+        await seed_data()
+    except Exception as exc:  # pragma: no cover - only on concurrent serverless cold starts
+        logger.warning(f"Seeding skipped/partially failed (likely already seeded by another instance): {exc}")
     yield
 
 app = FastAPI(
@@ -32,10 +37,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS
+# CORS - allows dynamic Vercel origin configuration via CORS_ORIGINS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
